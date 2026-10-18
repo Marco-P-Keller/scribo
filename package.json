@@ -26,7 +26,8 @@
     "test:e2e": "node tests/e2e/electron.mjs",
     "icons": "node scripts/make-icons.mjs",
     "sample": "node scripts/make-sample.mjs",
-    "build:web": "vite build --base=./"
+    "build:web": "vite build --base=./",
+    "pretest": "node scripts/prepare-assets.mjs"
   },
   "devDependencies": {
     "@expo-google-fonts/caveat": "^0.4.2",
