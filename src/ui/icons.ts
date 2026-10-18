@@ -1,7 +1,7 @@
 import {
   createElement, AlignCenter, AlignLeft, AlignRight, ArrowUpRight, Bold, BringToFront, Check, ChevronDown, ChevronLeft,
   ChevronRight, ChevronUp, CircleHelp, ClipboardPaste, Copy, CopyPlus, Download, Ellipsis, Eraser, FileDown, FilePlus2, Files,
-  FolderOpen, Fullscreen, Grid2x2, Hand, Highlighter, ImagePlus, Info, Italic, Keyboard, Lasso, Layers, Link, List, ListTree,
+  FolderOpen, Fullscreen, Grid2x2, Hand, Highlighter, ImagePlus, Info, Italic, Keyboard, LassoSelect, Layers, Link, List, ListTree,
   Maximize, Minimize, Minus, Moon, MousePointer2, Pencil, Pentagon, Plus, Printer, Redo2, RefreshCw, RotateCcw, RotateCw,
   Save, Scissors, Search, SendToBack, Settings, Shapes, Square, Star, StickyNote, Strikethrough, Sun, Trash2, Triangle, Type,
   Underline, Undo2, X, ZoomIn, ZoomOut, PanelLeft, Spline, Circle, Slash, LayoutGrid, FileText, Share, Waypoints, Palette,
@@ -14,7 +14,7 @@ const ICONS = {
   check: Check, down: ChevronDown, left: ChevronLeft, right: ChevronRight, up: ChevronUp, help: CircleHelp, paste: ClipboardPaste,
   copy: Copy, duplicate: CopyPlus, download: Download, more: Ellipsis, eraser: Eraser, saveAs: FileDown, newPage: FilePlus2,
   pages: Files, open: FolderOpen, fullscreen: Fullscreen, grid: Grid2x2, hand: Hand, highlighter: Highlighter, image: ImagePlus,
-  info: Info, italic: Italic, keyboard: Keyboard, lasso: Lasso, layers: Layers, link: Link, list: List, outline: ListTree,
+  info: Info, italic: Italic, keyboard: Keyboard, lasso: LassoSelect, layers: Layers, link: Link, list: List, outline: ListTree,
   maximize: Maximize, minimize: Minimize, minus: Minus, moon: Moon, select: MousePointer2, pencil: Pencil, polygon: Pentagon,
   plus: Plus, print: Printer, redo: Redo2, refresh: RefreshCw, rotateLeft: RotateCcw, rotateRight: RotateCw, save: Save,
   cut: Scissors, search: Search, back: SendToBack, settings: Settings, shapes: Shapes, rect: Square, star: Star, note: StickyNote,

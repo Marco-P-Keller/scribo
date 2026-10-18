@@ -425,6 +425,10 @@ export class App implements AppApi {
     const s = this.session;
     if (!s || this.saving) return;
     if (!s.file.path && !s.file.handle) return this.saveAs();
+    if (!s.model.dirty) {
+      if (!silent) this.toast(t('app.saved'), 'info', 1000);
+      return;
+    }
     this.saving = true;
     try {
       if (!silent) this.toast(t('app.saving'), 'info', 900);

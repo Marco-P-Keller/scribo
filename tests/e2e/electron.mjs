@@ -1,6 +1,7 @@
 // End-to-end smoke test of the real Electron app: open a PDF from disk, write with pen
 // events, save in place with Ctrl+S, relaunch and check that the ink is still editable.
-import { copyFileSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { PDFDocument, PDFName, PDFDict } from 'pdf-lib';
@@ -44,6 +45,26 @@ await pen.stroke(circle(820, 470, 60));
 const kinds = await page.evaluate(() => window.__scribo.session.model.pages[0].map((o) => o.t));
 ok(kinds.length === 2, `two objects drawn (${kinds.join(',')})`);
 ok(await page.evaluate(() => window.__scribo.session.model.dirty), 'document is dirty');
+
+// optional: pictures of the real window (CI uploads them so the Windows look can be reviewed)
+const shots = process.env.SCRIBO_SCREENSHOT_DIR;
+if (shots) {
+  mkdirSync(shots, { recursive: true });
+  await page.screenshot({ path: join(shots, 'content.png') });
+  await page.click('.preset.selected').catch(() => undefined);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: join(shots, 'content-popover.png') });
+  if (process.platform === 'win32') {
+    const ps = `Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $b=[System.Windows.Forms.SystemInformation]::VirtualScreen; $bmp=New-Object System.Drawing.Bitmap $b.Width,$b.Height; $g=[System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($b.Left,$b.Top,0,0,$bmp.Size); $bmp.Save('${join(shots, 'screen.png').replace(/'/g, "''")}')`;
+    try {
+      execFileSync('powershell', ['-NoProfile', '-Command', ps], { stdio: 'ignore' });
+    } catch {
+      log('screen capture unavailable');
+    }
+  }
+  await page.keyboard.press('Escape');
+  log('screenshots written');
+}
 
 await page.keyboard.press('Control+s');
 await page.waitForFunction(() => !window.__scribo.session.model.dirty, null, { timeout: 15000, polling: 100 });
