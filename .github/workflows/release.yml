@@ -38,6 +38,16 @@ jobs:
           if-no-files-found: ignore
       - name: Package
         run: npx electron-builder --win --publish never
+      - name: Smoke test the installer (silent install, then run the installed app)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath release\Scribo-Setup-x64.exe -ArgumentList '/S' -Wait -PassThru
+          Write-Host "installer exit code: $($p.ExitCode)"
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\Scribo\Scribo.exe'
+          if (-not (Test-Path $exe)) { Get-ChildItem "$env:LOCALAPPDATA\Programs" -ErrorAction SilentlyContinue | Out-Host; throw "Scribo.exe was not installed to $exe" }
+          $env:SCRIBO_EXE = $exe
+          npm run test:e2e
+          if ($LASTEXITCODE -ne 0) { throw 'installed app failed the smoke test' }
       - name: Publish release
         if: ${{ github.event_name == 'push' || inputs.publish }}
         shell: bash

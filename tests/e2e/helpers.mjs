@@ -62,7 +62,9 @@ function freePort() {
 
 export async function launchElectron(root, env = {}) {
   const port = await freePort();
-  const child = spawn(electronPath, [root, `--remote-debugging-port=${port}`], {
+  // SCRIBO_EXE: test an installed / packaged build instead of the sources
+  const exe = process.env.SCRIBO_EXE;
+  const child = spawn(exe ?? electronPath, [...(exe ? [] : [root]), `--remote-debugging-port=${port}`], {
     env: { ...process.env, SCRIBO_TEST: '1', ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
