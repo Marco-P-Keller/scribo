@@ -51,6 +51,8 @@ const SAFE_URL = /^(https?:|mailto:)/i;
 export class App implements AppApi {
   readonly viewer = new Viewer();
   readonly editor: Editor;
+  /** exposed for end-to-end tests */
+  readonly settings = settings;
   session: DocSession | null = null;
 
   private toolbar: Toolbar;
@@ -670,7 +672,8 @@ export class App implements AppApi {
         page.cleanup();
       }
       await Promise.all([...root.querySelectorAll('img')].map((im) => (im as HTMLImageElement).decode().catch(() => undefined)));
-      window.print();
+      if (this.host.print) await this.host.print();
+      else window.print();
     } finally {
       document.body.classList.remove('printing');
       root.remove();

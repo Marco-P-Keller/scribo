@@ -45,6 +45,13 @@ Die Installation braucht keine Administratorrechte, Updates kommen automatisch v
 
 `Strg + S` schreibt direkt in dieselbe Datei (atomar, mit Schutz gegen fremde Änderungen). Die Anmerkungen stehen danach **in der PDF** und sind in jedem PDF-Programm sichtbar. Gleichzeitig legt Scribo die editierbaren Striche als eingebettete Datei (`scribo-notes.json`) ab, sodass sie beim nächsten Öffnen wieder voll bearbeitbar sind. Die sichtbare Ebene heißt „Scribo Notizen“ und lässt sich in anderen Programmen ein- und ausblenden. *Datei → Flache Kopie exportieren* erzeugt eine PDF ohne editierbare Daten.
 
+### Bekannte Grenzen
+
+- Ausfüllbare PDF-Formulare werden angezeigt, lassen sich aber (noch) nicht ausfüllen.
+- Passwortgeschützte PDFs lassen sich öffnen und lesen, Anmerkungen können darin aber nicht gespeichert werden.
+- Digital signierte PDFs verlieren beim Speichern die Gültigkeit der Signatur (die PDF wird neu geschrieben). Nutze dafür *Speichern unter*.
+- Die Windows-Version ist noch nicht code-signiert (SmartScreen-Hinweis, siehe oben).
+
 ## Tastenkürzel
 
 `Strg+O` Öffnen · `Strg+S` Speichern · `Strg+Umschalt+S` Speichern unter · `Strg+Z / Y` Rückgängig / Wiederholen · `Strg+C / X / V / D` Kopieren / Ausschneiden / Einfügen / Duplizieren · `Entf` Löschen · `Strg+F` Suchen · `Strg+B` Seitenleiste · `Strg+0 / 1 / 2` Breite / 100 % / Ganze Seite · `Leertaste` Verschieben · `V P H E L T S N` Werkzeuge · `Strg+/` alle Kürzel

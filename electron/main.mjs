@@ -334,6 +334,12 @@ ipcMain.on('win:theme', (e, dark) => {
     }
   }
 });
+ipcMain.handle('win:print', (e) => {
+  const wc = e.sender;
+  return new Promise((resolve) => {
+    wc.print({ printBackground: true, silent: false }, (success) => resolve(success));
+  });
+});
 ipcMain.on('shell:open', (_e, url) => {
   if (typeof url === 'string' && /^(https?:|mailto:)/i.test(url)) shell.openExternal(url);
 });

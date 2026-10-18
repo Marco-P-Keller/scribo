@@ -32,4 +32,5 @@ contextBridge.exposeInMainWorld('scribo', {
   installUpdate: () => ipcRenderer.send('update:install'),
   addRecent: (p) => ipcRenderer.send('app:recent', p),
   setTheme: (dark) => ipcRenderer.send('win:theme', !!dark),
+  print: () => ipcRenderer.invoke('win:print'),
 });

@@ -45,6 +45,8 @@ export interface Host {
   closeWindow(): void;
   newWindow?(path?: string): void;
   setTheme?(dark: boolean): void;
+  /** Show the system print dialog for the current (print-styled) page. */
+  print?(): Promise<boolean>;
   openExternal(url: string): void;
   showInFolder?(path: string): void;
   onUpdate?(cb: (u: UpdateInfo) => void): void;

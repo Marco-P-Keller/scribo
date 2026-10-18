@@ -33,6 +33,7 @@ export interface ScriboBridge {
   installUpdate(): void;
   addRecent(path: string): void;
   setTheme(dark: boolean): void;
+  print(): Promise<boolean>;
   /** Test hook: absolute path of a file to open on launch (set by e2e tests only). */
   onFullscreen(cb: (on: boolean) => void): void;
 }
@@ -109,6 +110,7 @@ export function createElectronHost(b: ScriboBridge): Host & { launchPaths(): Pro
     closeWindow: () => b.closeWindow(),
     newWindow: (path) => b.newWindow(path),
     setTheme: (dark) => b.setTheme(dark),
+    print: () => b.print(),
     openExternal: (url) => b.openExternal(url),
     showInFolder: (p) => b.showInFolder(p),
     onUpdate: (cb) => b.onUpdate(cb),
