@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
+import { PDFDocument, degrees } from 'pdf-lib';
 import { fixture, openDoc, Pen, wave, circle } from './helpers.mjs';
 
 const dist = join(new URL('../..', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), 'dist');
@@ -160,14 +161,69 @@ const px = await page.evaluate(() => {
 ok(px > 0 && px < 16_000_000, `zoom 600% stays within the bitmap budget (${px} px)`);
 await page.evaluate(() => window.__scribo.viewer.setZoom(1));
 
+
+// ── export geometry on rotated / cropped pages ──────────────────────────────
+// A red box is placed in page space on pages with /Rotate 0, 90, 180, 270 and an offset crop box.
+// The baked appearance written into the PDF must land on exactly the same spot.
+{
+  const doc = await PDFDocument.create();
+  for (const [i, rot] of [0, 90, 180, 270].entries()) {
+    const p = doc.addPage([400, 300]);
+    p.setRotation(degrees(rot));
+    if (i === 3) p.setCropBox(20, 30, 330, 240);
+  }
+  const b64 = Buffer.from(await doc.save()).toString('base64');
+  await openDoc(page, b64, 'rot.pdf');
+  const res = await page.evaluate(async () => {
+    const app = window.__scribo;
+    const s = app.session;
+    const out = [];
+    for (let i = 0; i < s.pageCount; i++) {
+      const m = s.metas[i];
+      s.model.add('box', i, { id: `g${i}`, t: 'shape', k: 'rect', p: [50, 40, 150, 40, 150, 100, 50, 100], c: '#ff0000', w: 1, fill: '#ff0000', fo: 1 });
+    }
+    const bytes = await s.buildBytes();
+    const s2 = await s.constructor.open(bytes, { name: 'rot2.pdf' });
+    // baked layer visible (default optional-content state) vs hidden (what Scribo shows)
+    const visible = await s2.pdf.getOptionalContentConfig();
+    for (let i = 0; i < s2.pageCount; i++) {
+      const page = await s2.pdf.getPage(i + 1);
+      const render = async (cfg) => {
+        const vp = page.getViewport({ scale: 1 });
+        const c = document.createElement('canvas');
+        c.width = Math.ceil(vp.width);
+        c.height = Math.ceil(vp.height);
+        await page.render({ canvas: c, viewport: vp, background: '#fff', annotationMode: 1, optionalContentConfigPromise: Promise.resolve(cfg) }).promise;
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
+        for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
+          const k = (y * c.width + x) * 4;
+          if (d[k] > 200 && d[k + 1] < 60 && d[k + 2] < 60) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+        }
+        return x1 < 0 ? null : [x0, y0, x1 + 1, y1 + 1];
+      };
+      out.push({ page: i, baked: await render(visible), hidden: await render(await s2.ocConfig), size: [s2.metas[i].w, s2.metas[i].h] });
+    }
+    return out;
+  });
+  for (const r of res) {
+    const near = r.baked && [50, 40, 150, 100].every((v, k) => Math.abs(r.baked[k] - v) <= 2);
+    ok(near, `baked ink sits on the editable position on page ${r.page + 1} (${JSON.stringify(r.baked)})`);
+    ok(r.hidden === null, `baked layer is hidden for Scribo on page ${r.page + 1}`);
+  }
+}
+
 // ── save roundtrip ──────────────────────────────────────────────────────────
+await openDoc(page, fixture());
+await page.keyboard.press('p');
+await pen.stroke(wave(300, 330, 300));
 const back = await page.evaluate(async () => {
   const s = window.__scribo.session;
   const bytes = await s.buildBytes();
   const s2 = await s.constructor.open(bytes, { name: 'x.pdf' });
   return s2.model.pages[0].map((o) => o.t).join(',');
 });
-ok(back.split(',').length >= 6, `save + reopen keeps everything editable (${back})`);
+ok(back === 'ink', `save + reopen keeps the stroke editable (${back})`);
 
 await browser.close();
 server.close();
