@@ -36,21 +36,27 @@ jobs:
           path: ${{ runner.temp }}/shots
           retention-days: 7
           if-no-files-found: ignore
-      - name: Package (and publish when tagged)
+      - name: Package
+        run: npx electron-builder --win --publish never
+      - name: Publish release
+        if: ${{ github.event_name == 'push' || inputs.publish }}
         shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.publish }}" = "true" ]; then
-            npx electron-builder --win --publish always
-          else
-            npx electron-builder --win --publish never
-          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # one deterministic release instead of electron-builder's parallel uploads
+          TAG="v$(node -p "require('./package.json').version")"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Scribo ${TAG#v}" --notes-file RELEASE_NOTES.md --verify-tag
+          gh release upload "$TAG" --clobber \
+            release/Scribo-Setup-x64.exe release/Scribo-Setup-x64.exe.blockmap \
+            release/Scribo-Setup-arm64.exe release/Scribo-Setup-arm64.exe.blockmap \
+            release/Scribo-Portable-x64.exe release/Scribo-Portable-arm64.exe \
+            release/latest.yml
       - uses: actions/upload-artifact@v4
         if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish }}
         with:
           name: scribo-windows
           path: |
-            release/*.exe
+            release/Scribo-*.exe
             release/latest*.yml
           if-no-files-found: error
