@@ -1,0 +1,244 @@
+/* ── Design tokens ─────────────────────────────────────────────────────── */
+:root {
+  --font-ui: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'SF Pro Text',
+    system-ui, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont,
+    'SF Pro Display', system-ui, sans-serif;
+
+  --accent: #0a84ff;
+  --accent-strong: #006edc;
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-softer: color-mix(in srgb, var(--accent) 8%, transparent);
+  --danger: #ff3b30;
+
+  --bg-canvas: #e6e7eb;
+  --bg-window: #f6f6f8;
+  --bg-chrome: rgba(250, 250, 252, 0.78);
+  --bg-elevated: rgba(255, 255, 255, 0.9);
+  --bg-solid: #ffffff;
+  --bg-hover: rgba(0, 0, 0, 0.055);
+  --bg-press: rgba(0, 0, 0, 0.09);
+  --bg-field: rgba(0, 0, 0, 0.05);
+
+  --line: rgba(0, 0, 0, 0.09);
+  --line-strong: rgba(0, 0, 0, 0.16);
+
+  --text: #1d1d1f;
+  --text-2: #5f5f66;
+  --text-3: #98989f;
+
+  --shadow-page: 0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.1), 0 10px 28px rgba(0, 0, 0, 0.1);
+  --shadow-pop: 0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.08), 0 16px 48px rgba(0, 0, 0, 0.2);
+  --shadow-bar: 0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 20px rgba(0, 0, 0, 0.1);
+
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 18px;
+  --ease: cubic-bezier(0.22, 0.9, 0.28, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+
+  --titlebar-h: 52px;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg-canvas: #17171a;
+  --bg-window: #1e1e21;
+  --bg-chrome: rgba(38, 38, 42, 0.78);
+  --bg-elevated: rgba(44, 44, 48, 0.92);
+  --bg-solid: #2c2c30;
+  --bg-hover: rgba(255, 255, 255, 0.08);
+  --bg-press: rgba(255, 255, 255, 0.13);
+  --bg-field: rgba(255, 255, 255, 0.08);
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.2);
+  --text: #f5f5f7;
+  --text-2: #b0b0b8;
+  --text-3: #76767e;
+  --shadow-page: 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 2px 8px rgba(0, 0, 0, 0.5), 0 14px 36px rgba(0, 0, 0, 0.45);
+  --shadow-pop: 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 2px 8px rgba(0, 0, 0, 0.4), 0 20px 56px rgba(0, 0, 0, 0.6);
+  --shadow-bar: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --accent: #0a84ff;
+  color-scheme: dark;
+}
+
+/* ── Reset ─────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-window);
+  color: var(--text);
+  font: 13px/1.4 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  user-select: none;
+  -webkit-user-select: none;
+  overscroll-behavior: none;
+}
+#app {
+  height: 100%;
+}
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+svg {
+  display: block;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button:focus:not(:focus-visible) {
+  outline: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* thin, quiet scrollbars */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 134, 0.45);
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 134, 0.7);
+  background-clip: content-box;
+  border: 3px solid transparent;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ── Viewer ────────────────────────────────────────────────────────────── */
+.viewer {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-canvas);
+}
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  touch-action: none;
+  overscroll-behavior: none;
+  outline: none;
+  background: var(--bg-canvas);
+}
+.stage.select-mode {
+  user-select: text;
+  -webkit-user-select: text;
+}
+.doc {
+  position: relative;
+}
+.page {
+  position: absolute;
+  background: #fff;
+  box-shadow: var(--shadow-page);
+  isolation: isolate;
+  border-radius: 1px;
+}
+.layer {
+  position: absolute;
+  pointer-events: none;
+  image-rendering: auto;
+}
+.layer.hl {
+  mix-blend-mode: multiply;
+}
+.layer.live.multiply {
+  mix-blend-mode: multiply;
+}
+.search-layer,
+.page-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.page-overlay > * {
+  pointer-events: auto;
+}
+.viewer-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.viewer-overlay > * {
+  pointer-events: auto;
+}
+.textLayer {
+  pointer-events: none;
+}
+.stage.select-mode .textLayer {
+  pointer-events: auto;
+}
+.stage.select-mode .textLayer :is(span, br) {
+  cursor: text;
+}
+.textLayer ::selection {
+  background: rgba(10, 132, 255, 0.28);
+  color: transparent;
+}
+.stage.dragging,
+.stage.dragging * {
+  cursor: grabbing !important;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+}
+
+.hover-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75), inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  transition: opacity 0.12s linear;
+  will-change: transform;
+}

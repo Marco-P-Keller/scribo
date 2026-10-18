@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Scribo – PDFs beschriften wie auf Papier</title>
+    <meta name="description" content="Scribo ist der PDF-Editor für handschriftliche Notizen im Studium: druckempfindliche Tinte, automatische Formerkennung, Stifttasten für Radierer und Lasso. Kostenlos für Windows 11." />
+    <meta property="og:title" content="Scribo – PDFs beschriften wie auf Papier" />
+    <meta property="og:description" content="Handschriftliche Notizen auf PDFs. Druckempfindlich, minimalistisch, kostenlos für Windows 11." />
+    <meta property="og:image" content="assets/hero-light.png" />
+    <link rel="icon" href="assets/favicon-32.png" type="image/png" />
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <a class="brand" href="#top" aria-label="Scribo">
+        <img src="assets/icon-256.png" alt="" width="28" height="28" />
+        <span>Scribo</span>
+      </a>
+      <nav>
+        <a href="#features" data-i18n="nav.features">Funktionen</a>
+        <a href="#download" data-i18n="nav.download">Download</a>
+        <a href="https://github.com/Marco-P-Keller/scribo" rel="noopener">GitHub</a>
+        <button class="lang" id="lang" aria-label="Language">EN</button>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <p class="eyebrow" data-i18n="hero.eyebrow">Für Windows 11 · Kostenlos · Open Source</p>
+        <h1 data-i18n-html="hero.title">Schreib auf PDFs,<br />als wäre es Papier.</h1>
+        <p class="lede" data-i18n="hero.lede">Scribo ist der PDF-Editor für handschriftliche Notizen im Studium. Druckempfindliche Tinte, Formerkennung und deine Stifttasten – minimalistisch, schnell und komplett offline.</p>
+        <div class="cta">
+          <a class="btn primary" id="cta-main" href="https://github.com/Marco-P-Keller/scribo/releases/latest/download/Scribo-Setup-x64.exe">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 21h14" /></svg>
+            <span data-i18n="cta.download">Download für Windows</span>
+          </a>
+          <a class="btn ghost" href="app/" data-i18n="cta.try">Im Browser ausprobieren</a>
+        </div>
+        <p class="fine" id="version-line" data-i18n="hero.fine">Windows 10 / 11 · 64-Bit und ARM64 · kein Konto, kein Tracking</p>
+
+        <figure class="shot">
+          <picture>
+            <source srcset="assets/hero-dark.png" media="(prefers-color-scheme: dark)" />
+            <img src="assets/hero-light.png" alt="Scribo mit einer annotierten Vorlesungsfolie: roter Kreis, blaue Unterstreichung, gelber Textmarker und eine Notiz" width="1600" height="1000" />
+          </picture>
+        </figure>
+      </section>
+
+      <section class="band">
+        <ul class="chips" aria-label="Funktionen">
+          <li data-i18n="chip.1">Druckempfindliche Tinte</li>
+          <li data-i18n="chip.2">Textmarker</li>
+          <li data-i18n="chip.3">Formerkennung</li>
+          <li data-i18n="chip.4">Lasso &amp; Transformieren</li>
+          <li data-i18n="chip.5">Text &amp; Notizen</li>
+          <li data-i18n="chip.6">Formen &amp; Polygone</li>
+          <li data-i18n="chip.7">Seiten verwalten</li>
+          <li data-i18n="chip.8">Suche &amp; Gliederung</li>
+          <li data-i18n="chip.9">Hell &amp; Dunkel</li>
+        </ul>
+      </section>
+
+      <section class="features" id="features">
+        <h2 data-i18n-html="feat.title">Alles, was du zum Lernen brauchst.<br /><span>Nichts, was dich ablenkt.</span></h2>
+
+        <div class="grid">
+          <article class="card">
+            <div class="art ink" aria-hidden="true">
+              <svg viewBox="0 0 320 150">
+                <path class="taper" d="M20 98 C48 40 82 34 112 70 S168 128 206 76 S272 24 300 62 C272 44 238 70 212 96 C176 138 134 118 108 82 C84 52 52 62 20 98Z" />
+              </svg>
+            </div>
+            <h3 data-i18n="f1.t">Tinte mit Gefühl</h3>
+            <p data-i18n="f1.p">Druck und Tempo formen jeden Strich wie bei einem echten Füller: sanft anlaufend, kräftig in der Mitte, elegant auslaufend.</p>
+          </article>
+
+          <article class="card">
+            <div class="art snap" aria-hidden="true">
+              <svg viewBox="0 0 320 150">
+                <path class="wobble" d="M214 78 C214 36 160 22 120 34 C70 48 58 98 92 120 C126 142 196 130 212 92 C216 82 216 70 206 58" pathLength="1" />
+                <circle class="perfect" cx="150" cy="80" r="52" />
+                <text class="hint" x="150" y="146" text-anchor="middle" data-i18n="f2.hint">Stift kurz ruhen lassen</text>
+              </svg>
+            </div>
+            <h3 data-i18n="f2.t">Formen erkennen sich selbst</h3>
+            <p data-i18n="f2.p">Kreis, Ellipse, Rechteck, Dreieck oder Linie: Ruhe kurz mit dem Stift, und deine Skizze rastet sauber ein. Oder sofort beim Absetzen.</p>
+          </article>
+
+          <article class="card">
+            <div class="art pen" aria-hidden="true">
+              <svg viewBox="0 0 320 150">
+                <g transform="rotate(-24 160 78)">
+                  <rect x="60" y="62" width="200" height="32" rx="16" class="barrel" />
+                  <rect x="64" y="66" width="120" height="6" rx="3" class="sheen" />
+                  <path d="M260 62 l34 16 l-34 16z" class="tip" />
+                  <rect x="112" y="69" width="26" height="9" rx="4.5" class="btn1" />
+                  <rect x="146" y="69" width="26" height="9" rx="4.5" class="btn2" />
+                </g>
+                <g class="label"><circle cx="82" cy="28" r="3" /><text x="92" y="32" data-i18n="f3.b1">Taste 1 · Radieren</text></g>
+                <g class="label"><circle cx="82" cy="128" r="3" /><text x="92" y="132" data-i18n="f3.b2">Taste 2 · Lasso</text></g>
+              </svg>
+            </div>
+            <h3 data-i18n="f3.t">Deine Stifttasten</h3>
+            <p data-i18n="f3.p">Taste 1 radiert ganze Linien, Taste 2 öffnet das Lasso. Die Belegung ist frei einstellbar, mit Live-Test für deinen Stift.</p>
+          </article>
+
+          <article class="card">
+            <div class="art lasso" aria-hidden="true">
+              <svg viewBox="0 0 320 150">
+                <path class="scribble" d="M70 100 C86 60 112 60 124 92 S160 120 176 80 S210 52 234 92" />
+                <path class="loop" d="M52 118 C40 70 80 30 150 34 C230 38 268 70 252 112 C240 138 130 142 52 118Z" />
+                <circle class="knob" cx="52" cy="118" r="5" /><circle class="knob" cx="252" cy="112" r="5" /><circle class="knob" cx="150" cy="34" r="5" />
+              </svg>
+            </div>
+            <h3 data-i18n="f4.t">Auswählen, kopieren, drehen</h3>
+            <p data-i18n="f4.p">Umkreise Handschrift mit dem Lasso und verschiebe, skaliere, drehe, kopiere oder färbe sie um. Alles mit Rückgängig.</p>
+          </article>
+
+          <article class="card wide">
+            <div class="art shot-small">
+              <img src="assets/pop-pen.png" alt="Favoriten-Leiste mit Stift-Einstellungen: Stärke, Farbe, Formerkennung" loading="lazy" />
+            </div>
+            <div class="text">
+              <h3 data-i18n="f5.t">Favoriten in Reichweite</h3>
+              <p data-i18n="f5.p">Deine Lieblingsstifte und Textmarker liegen immer in einer ruhigen Leiste. Ein Tipp wählt, ein zweiter öffnet Farbe, Stärke und Formerkennung. Per Ziehen sortierst du um.</p>
+            </div>
+          </article>
+
+          <article class="card wide reverse">
+            <div class="art keys" aria-hidden="true">
+              <div class="doc"><span class="pdf">PDF</span><b>Vorlesung.pdf</b><i class="saved"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7" /></svg></i></div>
+              <div class="caps"><kbd>Strg</kbd><span>+</span><kbd>S</kbd></div>
+            </div>
+            <div class="text">
+              <h3 data-i18n="f6.t">Strg + S speichert in dieselbe Datei</h3>
+              <p data-i18n="f6.p">Wie du es von klassischen PDF-Editoren kennst. Deine Notizen stehen danach in der PDF, sichtbar in jedem Programm und in Scribo jederzeit weiter bearbeitbar.</p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="split">
+        <div class="split-text">
+          <h2 data-i18n="s.title">Formen, Text und Notizen, wenn du sie brauchst.</h2>
+          <p data-i18n="s.p">Linien, Pfeile, Rechtecke, Ellipsen und Polygone mit Füllung und Strichart. Textfelder in vier Schriften, Haftnotizen als echte PDF-Kommentare, Bilder aus der Zwischenablage, Textmarker direkt auf markiertem PDF-Text.</p>
+          <ul class="ticks">
+            <li data-i18n="s.1">Leere, linierte, karierte oder gepunktete Seiten einfügen</li>
+            <li data-i18n="s.2">Seiten drehen, sortieren, duplizieren und löschen</li>
+            <li data-i18n="s.3">Volltextsuche und Gliederung der PDF</li>
+            <li data-i18n="s.4">Zoom per Pinch, Touch-Scrollen, Handballen-Erkennung</li>
+          </ul>
+        </div>
+        <img class="split-img" src="assets/pop-shape.png" alt="Formen-Auswahl mit Farbe, Stärke, Füllung und Linienart" loading="lazy" />
+      </section>
+
+      <section class="download" id="download">
+        <img class="dl-icon" src="assets/icon-512.png" alt="" width="96" height="96" />
+        <h2 data-i18n="dl.title">Scribo herunterladen</h2>
+        <p class="lede" data-i18n="dl.lede">Installation ohne Administratorrechte. Updates kommen automatisch von GitHub.</p>
+        <div class="dl-grid">
+          <a class="dl primary" id="dl-x64" href="https://github.com/Marco-P-Keller/scribo/releases/latest/download/Scribo-Setup-x64.exe">
+            <b data-i18n="dl.installer">Installer</b><span>Windows 10/11 · x64</span>
+          </a>
+          <a class="dl" id="dl-arm" href="https://github.com/Marco-P-Keller/scribo/releases/latest/download/Scribo-Setup-arm64.exe">
+            <b data-i18n="dl.installer">Installer</b><span>Windows 11 · ARM64</span>
+          </a>
+          <a class="dl" id="dl-portable" href="https://github.com/Marco-P-Keller/scribo/releases/latest/download/Scribo-Portable-x64.exe">
+            <b data-i18n="dl.portable">Portable</b><span data-i18n="dl.portableSub">Ohne Installation · x64</span>
+          </a>
+        </div>
+        <p class="note" data-i18n-html="dl.smart"><b>Hinweis:</b> Scribo ist noch nicht code-signiert. Windows zeigt beim ersten Start deshalb „Der Computer wurde durch Windows geschützt“. Klicke auf <em>Weitere Informationen</em> und dann auf <em>Trotzdem ausführen</em>.</p>
+        <p class="note" id="not-windows" hidden data-i18n="dl.other">Du bist nicht unter Windows? Probiere Scribo direkt im Browser aus (Chrome oder Edge empfohlen).</p>
+        <p class="links"><a href="https://github.com/Marco-P-Keller/scribo/releases" rel="noopener" data-i18n="dl.all">Alle Versionen</a> · <a href="app/" data-i18n="cta.try">Im Browser ausprobieren</a> · <a href="https://github.com/Marco-P-Keller/scribo" rel="noopener" data-i18n="dl.source">Quellcode</a></p>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>© 2026 Marco Keller · <span data-i18n="foot.license">MIT-Lizenz</span></span>
+      <span data-i18n="foot.privacy">Alles bleibt auf deinem Gerät. Keine Konten, kein Tracking.</span>
+    </footer>
+
+    <script src="site.js"></script>
+  </body>
+</html>

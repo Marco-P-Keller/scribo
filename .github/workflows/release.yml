@@ -1,0 +1,47 @@
+name: Release
+# Tag a version (v1.0.0, must match package.json) to build the Windows installers and attach
+# them to a GitHub release. "Run workflow" builds without publishing and keeps the files as artifacts.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish to the GitHub release for the current version
+        type: boolean
+        default: false
+permissions:
+  contents: write
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Smoke test the real app (Electron on Windows)
+        run: npm run test:e2e
+      - name: Package (and publish when tagged)
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.publish }}" = "true" ]; then
+            npx electron-builder --win --publish always
+          else
+            npx electron-builder --win --publish never
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish }}
+        with:
+          name: scribo-windows
+          path: |
+            release/*.exe
+            release/latest*.yml
+          if-no-files-found: error

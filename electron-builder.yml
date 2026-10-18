@@ -1,0 +1,48 @@
+appId: com.marcokeller.scribo
+productName: Scribo
+copyright: Copyright © 2026 Marco Keller
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+asar: true
+compression: maximum
+electronLanguages:
+  - de
+  - en-US
+extraMetadata:
+  main: electron/main.mjs
+fileAssociations:
+  - ext: pdf
+    name: PDF-Dokument
+    description: PDF-Dokument
+    role: Editor
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+    - target: portable
+      arch: [x64, arm64]
+  signAndEditExecutable: true
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  deleteAppDataOnUninstall: false
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: Scribo
+  runAfterFinish: true
+  buildUniversalInstaller: false
+  artifactName: Scribo-Setup-${arch}.${ext}
+portable:
+  artifactName: Scribo-Portable-${arch}.${ext}
+publish:
+  provider: github
+  owner: Marco-P-Keller
+  repo: scribo
+  releaseType: release

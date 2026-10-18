@@ -1,0 +1,201 @@
+import { getStroke } from 'perfect-freehand';
+import type { AppApi } from '../app/api';
+import { settings } from '../app/settings';
+import type { PenAction } from '../app/settings';
+import { pressureCurve, outlinePath } from '../core/ink';
+import type { SnapMode } from '../core/types';
+import { h } from './dom';
+import { field, segmented, slider, toggle } from './popover';
+import { sheet } from './dialogs';
+import { addStrings, setLang, t } from './i18n';
+
+addStrings(
+  {
+    'set.title': 'Einstellungen', 'set.done': 'Fertig',
+    'set.appearance': 'Darstellung', 'set.theme': 'Design', 'set.themeAuto': 'System', 'set.themeLight': 'Hell', 'set.themeDark': 'Dunkel', 'set.language': 'Sprache',
+    'set.input': 'Stift & Eingabe', 'set.finger': 'Mit dem Finger zeichnen', 'set.fingerHint': 'Aus: Finger scrollen und zoomen, nur der Stift schreibt.',
+    'set.mouse': 'Mit der Maus zeichnen', 'set.palm': 'Handballen-Erkennung', 'set.palmHint': 'Berührungen werden ignoriert, solange der Stift am Bildschirm ist.',
+    'set.pressure': 'Druckempfindlichkeit', 'set.pressureHint': 'Links: fester drücken für dicke Linien. Rechts: schon leichter Druck reicht.',
+    'set.snap': 'Formerkennung', 'set.lowLatency': 'Geringere Schreib-Verzögerung', 'set.lowLatencyHint': 'Experimentell. Bei Flackern oder fehlender Tinte ausschalten.',
+    'set.buttons': 'Stifttasten', 'set.btn1': 'Taste 1 (Seitentaste, Code 2)', 'set.btn2': 'Taste 2 / Radierer-Ende (Code 32)', 'set.btn3': 'Mitteltaste (Code 4)',
+    'set.act.erase': 'Linie radieren', 'set.act.lasso': 'Lasso', 'set.act.select': 'Auswahl', 'set.act.none': 'Keine Aktion', 'set.swap': 'Tasten tauschen',
+    'set.test': 'Stift testen', 'set.testHint': 'Schreibe hier und drücke die Stifttasten. So siehst du, welche Taste welchen Code sendet.',
+    'set.testIdle': 'Stift über das Feld halten …', 'set.pressureLabel': 'Druck', 'set.pressed': 'Gedrückt', 'set.none': 'keine Taste',
+    'set.save': 'Speichern', 'set.autosave': 'Automatisch speichern', 'set.autosaveHint': 'Speichert 10 Sekunden nach der letzten Änderung in dieselbe Datei.',
+    'set.about': 'Über Scribo', 'set.version': 'Version {v}', 'set.privacy': 'Läuft vollständig offline. Es werden keine Daten gesendet.',
+    'btn.contact': 'Seitentaste', 'btn.eraser': 'Radierertaste', 'btn.middle': 'Mitteltaste',
+    'sc.title': 'Tastenkürzel', 'sc.file': 'Datei', 'sc.edit': 'Bearbeiten', 'sc.tools': 'Werkzeuge', 'sc.view': 'Ansicht',
+    'sc.open': 'Öffnen', 'sc.save': 'Speichern', 'sc.saveAs': 'Speichern unter', 'sc.print': 'Drucken', 'sc.new': 'Neues Fenster', 'sc.close': 'Fenster schließen',
+    'sc.undo': 'Rückgängig', 'sc.redo': 'Wiederholen', 'sc.copy': 'Kopieren / Ausschneiden / Einfügen', 'sc.dup': 'Duplizieren', 'sc.del': 'Auswahl löschen', 'sc.all': 'Alles auswählen', 'sc.nudge': 'Auswahl verschieben (Shift: 10×)',
+    'sc.tools.v': 'Auswahl', 'sc.tools.p': 'Stift', 'sc.tools.h': 'Textmarker', 'sc.tools.e': 'Radierer', 'sc.tools.l': 'Lasso', 'sc.tools.t': 'Text', 'sc.tools.s': 'Formen', 'sc.tools.n': 'Notiz',
+    'sc.zoom': 'Zoom', 'sc.fit': 'Breite anpassen / 100 % / Ganze Seite', 'sc.find': 'Suchen', 'sc.sidebar': 'Seitenleiste', 'sc.pan': 'Verschieben', 'sc.full': 'Vollbild',
+  },
+  {
+    'set.title': 'Settings', 'set.done': 'Done',
+    'set.appearance': 'Appearance', 'set.theme': 'Theme', 'set.themeAuto': 'System', 'set.themeLight': 'Light', 'set.themeDark': 'Dark', 'set.language': 'Language',
+    'set.input': 'Pen & input', 'set.finger': 'Draw with finger', 'set.fingerHint': 'Off: fingers scroll and zoom, only the pen writes.',
+    'set.mouse': 'Draw with mouse', 'set.palm': 'Palm rejection', 'set.palmHint': 'Touches are ignored while the pen is near the screen.',
+    'set.pressure': 'Pressure sensitivity', 'set.pressureHint': 'Left: press harder for thick lines. Right: light pressure is enough.',
+    'set.snap': 'Shape recognition', 'set.lowLatency': 'Lower writing latency', 'set.lowLatencyHint': 'Experimental. Turn off if you see flicker or missing ink.',
+    'set.buttons': 'Pen buttons', 'set.btn1': 'Button 1 (side button, code 2)', 'set.btn2': 'Button 2 / eraser end (code 32)', 'set.btn3': 'Middle button (code 4)',
+    'set.act.erase': 'Erase stroke', 'set.act.lasso': 'Lasso', 'set.act.select': 'Select', 'set.act.none': 'No action', 'set.swap': 'Swap buttons',
+    'set.test': 'Test your pen', 'set.testHint': 'Write here and press the pen buttons to see which button sends which code.',
+    'set.testIdle': 'Hold the pen over the field …', 'set.pressureLabel': 'Pressure', 'set.pressed': 'Pressed', 'set.none': 'no button',
+    'set.save': 'Saving', 'set.autosave': 'Save automatically', 'set.autosaveHint': 'Saves into the same file 10 seconds after the last change.',
+    'set.about': 'About Scribo', 'set.version': 'Version {v}', 'set.privacy': 'Runs fully offline. No data is sent anywhere.',
+    'btn.contact': 'Side button', 'btn.eraser': 'Eraser button', 'btn.middle': 'Middle button',
+    'sc.title': 'Keyboard shortcuts', 'sc.file': 'File', 'sc.edit': 'Edit', 'sc.tools': 'Tools', 'sc.view': 'View',
+    'sc.open': 'Open', 'sc.save': 'Save', 'sc.saveAs': 'Save as', 'sc.print': 'Print', 'sc.new': 'New window', 'sc.close': 'Close window',
+    'sc.undo': 'Undo', 'sc.redo': 'Redo', 'sc.copy': 'Copy / cut / paste', 'sc.dup': 'Duplicate', 'sc.del': 'Delete selection', 'sc.all': 'Select all', 'sc.nudge': 'Nudge selection (Shift: 10×)',
+    'sc.tools.v': 'Select', 'sc.tools.p': 'Pen', 'sc.tools.h': 'Highlighter', 'sc.tools.e': 'Eraser', 'sc.tools.l': 'Lasso', 'sc.tools.t': 'Text', 'sc.tools.s': 'Shapes', 'sc.tools.n': 'Note',
+    'sc.zoom': 'Zoom', 'sc.fit': 'Fit width / 100 % / Fit page', 'sc.find': 'Find', 'sc.sidebar': 'Sidebar', 'sc.pan': 'Pan', 'sc.full': 'Full screen',
+  },
+);
+
+const ACTIONS: PenAction[] = ['erase', 'lasso', 'select', 'none'];
+
+function row(label: string, control: HTMLElement, hint?: string): HTMLElement {
+  return h('div.set-row', null, h('div.set-text', null, h('div.set-label', null, label), hint ? h('div.set-hint', null, hint) : null), control);
+}
+
+function actionSelect(value: PenAction, onChange: (v: PenAction) => void): HTMLElement {
+  const sel = h('select.select', { onchange: () => onChange(sel.value as PenAction) },
+    ACTIONS.map((a) => h('option', { value: a, selected: a === value }, t(`set.act.${a}`))));
+  return sel;
+}
+
+/** A scribble pad that shows live pen data: pressure and which button codes arrive. */
+function penTestPad(app: AppApi): { el: HTMLElement; dispose: () => void } {
+  const canvas = h('canvas.pad', { width: 960, height: 220 });
+  const info = h('div.pad-info', null, t('set.testIdle'));
+  const ctx = canvas.getContext('2d')!;
+  let pts: number[][] = [];
+  const names = (b: number) => {
+    const out: string[] = [];
+    if (b & 2) out.push(`${t('btn.contact')} (2)`);
+    if (b & 32) out.push(`${t('btn.eraser')} (32)`);
+    if (b & 4) out.push(`${t('btn.middle')} (4)`);
+    return out.length ? out.join(' + ') : t('set.none');
+  };
+  const draw = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (pts.length < 2) return;
+    const outline = getStroke(pts, { size: 7, thinning: 0.62, smoothing: 0.55, streamline: 0.4, simulatePressure: false, last: true });
+    ctx.fillStyle = getComputedStyle(canvas).color;
+    ctx.fill(outlinePath(outline as [number, number][]));
+  };
+  const pos = (e: PointerEvent) => {
+    const r = canvas.getBoundingClientRect();
+    return [((e.clientX - r.left) / r.width) * canvas.width, ((e.clientY - r.top) / r.height) * canvas.height];
+  };
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    pts = [[...pos(e), pressureCurve(e.pressure, settings.get('sensitivity'))]];
+    e.preventDefault();
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    info.textContent = `${e.pointerType === 'pen' ? '✎' : e.pointerType} · ${t('set.pressureLabel')} ${Math.round(e.pressure * 100)} % · ${t('set.pressed')}: ${names(e.buttons)}`;
+    if (e.buttons & 1) {
+      for (const ev of e.getCoalescedEvents?.() ?? [e]) pts.push([...pos(ev), pressureCurve(ev.pressure, settings.get('sensitivity'))]);
+      draw();
+    }
+  });
+  canvas.addEventListener('pointerup', () => setTimeout(() => { pts = []; draw(); }, 1200));
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  const off = app.editor.on('penInfo', () => undefined);
+  return { el: h('div.pad-wrap', null, canvas, info), dispose: off };
+}
+
+export async function showSettings(app: AppApi): Promise<void> {
+  const s = settings;
+  const pad = penTestPad(app);
+  const buttons = h('div.btn-map');
+  const paintButtons = () => {
+    const m = s.get('penButtons');
+    buttons.replaceChildren(
+      row(t('set.btn1'), actionSelect(m.barrel, (v) => { s.patch('penButtons', { barrel: v }); })),
+      row(t('set.btn2'), actionSelect(m.eraser, (v) => { s.patch('penButtons', { eraser: v }); })),
+      row(t('set.btn3'), actionSelect(m.middle, (v) => { s.patch('penButtons', { middle: v }); })),
+      h('button.btn.small', {
+        onclick: () => {
+          const mm = s.get('penButtons');
+          s.patch('penButtons', { barrel: mm.eraser, eraser: mm.barrel });
+          paintButtons();
+        },
+      }, t('set.swap')),
+    );
+  };
+  paintButtons();
+
+  const body = h(
+    'div.settings',
+    null,
+    h('section', null,
+      h('h3', null, t('set.appearance')),
+      row(t('set.theme'), segmented(
+        [
+          { value: 'auto' as const, label: t('set.themeAuto') },
+          { value: 'light' as const, label: t('set.themeLight') },
+          { value: 'dark' as const, label: t('set.themeDark') },
+        ],
+        s.get('theme'),
+        (v) => s.set('theme', v),
+      )),
+      row(t('set.language'), segmented(
+        [
+          { value: 'auto' as const, label: 'Auto' },
+          { value: 'de' as const, label: 'Deutsch' },
+          { value: 'en' as const, label: 'English' },
+        ],
+        s.get('lang'),
+        (v) => {
+          s.set('lang', v);
+          setLang(v);
+        },
+      )),
+    ),
+    h('section', null,
+      h('h3', null, t('set.input')),
+      row(t('set.finger'), toggle(s.get('fingerDraws'), (v) => s.set('fingerDraws', v)), t('set.fingerHint')),
+      row(t('set.mouse'), toggle(s.get('mouseDraws'), (v) => s.set('mouseDraws', v))),
+      row(t('set.palm'), toggle(s.get('palmRejection'), (v) => s.set('palmRejection', v)), t('set.palmHint')),
+      field(t('set.pressure'), slider({ min: 0, max: 1, step: 0.05, value: s.get('sensitivity'), format: (v) => `${Math.round(v * 100)} %`, onInput: (v) => s.set('sensitivity', v) }), t('set.pressureHint')),
+      field(t('set.snap'), segmented(
+        [
+          { value: 'off' as SnapMode, label: t('snap.off') },
+          { value: 'hold' as SnapMode, label: t('snap.hold') },
+          { value: 'auto' as SnapMode, label: t('snap.auto') },
+        ],
+        s.get('snap'),
+        (v) => s.set('snap', v),
+      ), t('snap.hint')),
+      row(t('set.lowLatency'), toggle(s.get('lowLatency'), (v) => s.set('lowLatency', v)), t('set.lowLatencyHint')),
+    ),
+    h('section', null, h('h3', null, t('set.buttons')), buttons, h('div.set-sub', null, t('set.test')), h('div.set-hint', null, t('set.testHint')), pad.el),
+    h('section', null,
+      h('h3', null, t('set.save')),
+      row(t('set.autosave'), toggle(s.get('autosave'), (v) => s.set('autosave', v)), t('set.autosaveHint')),
+    ),
+    h('section.about', null,
+      h('h3', null, t('set.about')),
+      h('p', null, `Scribo · ${t('set.version', { v: app.host.appVersion })}`),
+      h('p.set-hint', null, t('set.privacy')),
+    ),
+  );
+  await sheet({ title: t('set.title'), body, buttons: [{ label: t('set.done'), value: true, primary: true }], cancelValue: true, wide: true });
+  pad.dispose();
+}
+
+export async function showShortcuts(): Promise<void> {
+  const mac = /Mac/.test(navigator.platform);
+  const c = mac ? '⌘' : 'Ctrl';
+  const group = (title: string, rows: [string, string][]) =>
+    h('section', null, h('h3', null, title), h('dl.keys', null, rows.map(([k, d]) => [h('dt', null, h('kbd', null, k)), h('dd', null, d)]).flat()));
+  const body = h('div.shortcuts', null,
+    group(t('sc.file'), [[`${c}+O`, t('sc.open')], [`${c}+S`, t('sc.save')], [`${c}+⇧+S`, t('sc.saveAs')], [`${c}+P`, t('sc.print')], [`${c}+N`, t('sc.new')], [`${c}+W`, t('sc.close')]]),
+    group(t('sc.edit'), [[`${c}+Z`, t('sc.undo')], [`${c}+Y`, t('sc.redo')], [`${c}+C / X / V`, t('sc.copy')], [`${c}+D`, t('sc.dup')], ['Entf', t('sc.del')], [`${c}+A`, t('sc.all')], ['← ↑ → ↓', t('sc.nudge')]]),
+    group(t('sc.tools'), (['v', 'p', 'h', 'e', 'l', 't', 's', 'n'] as const).map((k) => [k.toUpperCase(), t(`sc.tools.${k}`)] as [string, string])),
+    group(t('sc.view'), [[`${c}+ / ${c}−`, t('sc.zoom')], [`${c}+0 / 1 / 2`, t('sc.fit')], [`${c}+F`, t('sc.find')], [`${c}+B`, t('sc.sidebar')], ['Space', t('sc.pan')], ['F11', t('sc.full')]]),
+  );
+  await sheet({ title: t('sc.title'), body, buttons: [{ label: t('set.done'), value: true, primary: true }], cancelValue: true, wide: true });
+}
