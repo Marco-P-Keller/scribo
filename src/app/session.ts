@@ -35,8 +35,20 @@ export interface FileRef {
 export interface SessionEvents extends Record<string, unknown> {
   /** the page list or the underlying PDF was replaced */
   structure: undefined;
+  /** the PDF is about to be replaced (page views must not render) … */
+  swapping: undefined;
+  /** … and the replacement finished or failed */
+  swapped: undefined;
   /** file reference or title changed */
   file: undefined;
+}
+
+export interface SaveToken {
+  bytes: Uint8Array;
+  /** model state id the bytes contain */
+  state: number;
+  /** PDF version the bytes were built from */
+  version: number;
 }
 
 interface State {
@@ -115,6 +127,8 @@ export class DocSession extends Emitter<SessionEvents> {
   ocConfig!: Promise<OcConfig>;
   /** layer was present in the file as it was opened (so a re-save keeps it editable) */
   hadEditableLayer = false;
+  /** bumped whenever the underlying PDF is replaced (page operations, undo of them) */
+  private version = 0;
 
   private constructor(public bytes: Uint8Array, public file: FileRef, private password?: string) {
     super();
@@ -158,13 +172,30 @@ export class DocSession extends Emitter<SessionEvents> {
     this.model.pages.forEach((objs, index) => {
       if (!objs.length) return;
       const m = this.metas[index];
-      out.push({ index, objs, vt: m.vt, view: m.view, w: m.w, h: m.h });
+      // copy: the lists keep changing while the worker builds the file
+      out.push({ index, objs: objs.slice(), vt: m.vt, view: m.view, w: m.w, h: m.h });
     });
     return out;
   }
 
-  /** Produces the file contents: original PDF + baked appearance + editable data. */
-  async buildBytes(opts: { flatten?: boolean } = {}): Promise<Uint8Array> {
+  /**
+   * Produces the file contents: original PDF + baked appearance + editable data.
+   * Waits for running page operations so that PDF and annotations belong together.
+   */
+  buildBytes(opts: { flatten?: boolean } = {}): Promise<Uint8Array> {
+    return this.model.serial(() => this.buildNow(opts));
+  }
+
+  /** Like `buildBytes`, plus the state it captured, for `markSaved`. */
+  buildForSave(): Promise<SaveToken> {
+    return this.model.serial(async () => {
+      const state = this.model.stateId;
+      const version = this.version;
+      return { bytes: await this.buildNow({}), state, version };
+    });
+  }
+
+  private async buildNow(opts: { flatten?: boolean }): Promise<Uint8Array> {
     const pages = this.exportPages();
     const texts = new Map<string, TextObj>();
     for (const p of pages) for (const o of p.objs) if (o.t === 'text' && o.s.trim()) texts.set(fontKey(o), o);
@@ -178,11 +209,15 @@ export class DocSession extends Emitter<SessionEvents> {
     });
   }
 
-  /** After the file was written: the saved bytes are the new baseline. */
-  markSaved(bytes: Uint8Array, file: FileRef): void {
-    this.bytes = bytes;
+  /**
+   * After the file was written: the saved bytes are the new baseline, and the captured
+   * state is the clean one (strokes drawn while the file was written stay unsaved).
+   */
+  markSaved(saved: SaveToken, file: FileRef): void {
+    // pages changed meanwhile: keep the current PDF, it already contains that change
+    if (saved.version === this.version) this.bytes = saved.bytes;
     this.file = file;
-    this.model.markClean();
+    this.model.markCleanAt(saved.state);
     this.emit('file', undefined);
   }
 
@@ -194,19 +229,62 @@ export class DocSession extends Emitter<SessionEvents> {
 
   private async restore(state: State): Promise<void> {
     const old = this.pdf;
-    const pdf = await loadPdf(state.bytes, this.password);
-    this.bytes = state.bytes;
-    await this.attach(pdf);
-    this.model.setPages(state.pages.map((p) => p.slice()));
-    void old.loadingTask.destroy();
-    this.emit('structure', undefined);
+    this.emit('swapping', undefined);
+    try {
+      const pdf = await loadPdf(state.bytes, this.password);
+      this.bytes = state.bytes;
+      this.version++;
+      await this.attach(pdf);
+      this.model.setPages(state.pages.map((p) => p.slice()));
+      void old.loadingTask.destroy();
+      this.emit('structure', undefined);
+    } finally {
+      this.emit('swapped', undefined);
+    }
   }
 
   /**
    * Applies page operations to the document. Annotations travel with their pages;
    * the operation is one undo step.
    */
-  async applyStructure(label: string, ops: StructureOp[]): Promise<void> {
+  applyStructure(label: string, ops: StructureOp[] | ((s: DocSession) => StructureOp[])): Promise<void> {
+    return this.model.serial(() => this.model.whileSwapping(() => this.applyStructureNow(label, typeof ops === 'function' ? ops(this) : ops)));
+  }
+
+  /** Page numbers chosen before an earlier page operation finished may be out of range now. */
+  private sanitize(ops: StructureOp[]): StructureOp[] {
+    const n = this.pageCount;
+    const valid = (pages: number[]) => [...new Set(pages)].filter((i) => Number.isInteger(i) && i >= 0 && i < n);
+    const out: StructureOp[] = [];
+    for (const op of ops) {
+      switch (op.op) {
+        case 'insertBlank':
+        case 'insertPdf':
+          out.push({ ...op, at: Math.max(0, Math.min(n, op.at)) });
+          break;
+        case 'move': {
+          const pages = valid(op.pages);
+          if (pages.length) out.push({ ...op, pages, to: Math.max(0, Math.min(n, op.to)) });
+          break;
+        }
+        case 'delete': {
+          const pages = valid(op.pages);
+          // never delete every page
+          if (pages.length && pages.length < n) out.push({ ...op, pages });
+          break;
+        }
+        default: {
+          const pages = valid(op.pages);
+          if (pages.length) out.push({ ...op, pages });
+        }
+      }
+    }
+    return out;
+  }
+
+  private async applyStructureNow(label: string, requested: StructureOp[]): Promise<void> {
+    const ops = this.sanitize(requested);
+    if (!ops.length) return;
     const before = this.snapshot();
     const beforeMetas = this.metas;
     const newBytes = await restructurePdf(this.bytes, ops);

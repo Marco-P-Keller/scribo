@@ -350,7 +350,11 @@ export class App implements AppApi {
     this.refreshAddPage();
     session.model.on('change', ({ pages }) => this.viewer.invalidate(pages));
     session.model.on('history', () => this.onHistory());
+    session.on('swapping', () => this.viewer.setPaused(true, 'swap'));
+    session.on('swapped', () => this.viewer.setPaused(false, 'swap'));
     session.on('structure', () => {
+      // the page views are rebuilt: end any stroke or drag that runs on the old ones
+      this.editor.controller.cancelActive();
       this.editor.selection.clear();
       this.viewer.setSession(session, { keepView: true });
       this.onHistory();
@@ -444,7 +448,8 @@ export class App implements AppApi {
     this.saving = true;
     try {
       if (!silent) this.toast(t('app.saving'), 'info', 900);
-      const bytes = await s.buildBytes();
+      const built = await s.buildForSave();
+      const bytes = built.bytes;
       let ref: FileRef;
       try {
         ref = await this.host.write(s.file, bytes);
@@ -455,7 +460,7 @@ export class App implements AppApi {
           ref = await this.host.write(s.file, bytes, { overwriteModified: true });
         } else throw e;
       }
-      s.markSaved(bytes, ref);
+      s.markSaved(built, ref);
       this.toast(t('app.saved'), 'info', 1400);
     } catch (e) {
       this.reportSaveError(e);
@@ -478,9 +483,9 @@ export class App implements AppApi {
     if (!ref) return;
     this.saving = true;
     try {
-      const bytes = await s.buildBytes();
-      const saved = await this.host.writeNew(ref, bytes);
-      s.markSaved(bytes, saved);
+      const built = await s.buildForSave();
+      const saved = await this.host.writeNew(ref, built.bytes);
+      s.markSaved(built, saved);
       addRecent({ name: saved.name, path: saved.path, opened: Date.now() });
       this.toast(t('app.saved'), 'info', 1400);
     } catch (e) {
@@ -531,7 +536,7 @@ export class App implements AppApi {
 
   // ── page operations ───────────────────────────────────────────────────
 
-  async applyPageOps(label: string, ops: StructureOp[]): Promise<void> {
+  async applyPageOps(label: string, ops: StructureOp[] | ((s: DocSession) => StructureOp[])): Promise<void> {
     const s = this.session;
     if (!s) return;
     try {
@@ -568,11 +573,14 @@ export class App implements AppApi {
   appendPage(): void {
     const s = this.session;
     if (!s) return;
-    const at = s.pageCount;
-    const m = s.metas[at - 1];
-    void this.applyPageOps(t('app.addPage'), [{ op: 'insertBlank', at, w: m.w, h: m.h, template: settings.get('paper') }]).then(() => {
-      this.viewer.scrollToPage(at, { smooth: true });
-    });
+    const paper = settings.get('paper');
+    let at = 0;
+    // computed when it runs: a quick second click must add a second page, not the same one
+    void this.applyPageOps(t('app.addPage'), (doc) => {
+      at = doc.pageCount;
+      const m = doc.metas[at - 1];
+      return [{ op: 'insertBlank', at, w: m.w, h: m.h, template: paper }];
+    }).then(() => this.viewer.scrollToPage(at, { smooth: true }));
   }
 
   private refreshAddPage(): void {

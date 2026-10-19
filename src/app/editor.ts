@@ -93,6 +93,10 @@ export class Editor extends Emitter<EditorEvents> implements EditorApi {
       if (key === 'lowLatency') viewer.desynchronized = settings.get('lowLatency');
     });
     viewer.desynchronized = settings.get('lowLatency');
+    viewer.on('pages', () => this.selection.relink());
+    viewer.on('geometry', (i) => {
+      if (this.selection.page?.index === i) this.selection.relink();
+    });
     this.onToolChanged();
   }
 

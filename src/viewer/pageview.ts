@@ -62,6 +62,8 @@ export interface PageHost {
   /** visible part of a page in css px relative to the page's top-left, at the current scale */
   visibleRect(index: number): Rect | null;
   desynchronized: boolean;
+  /** true while the pen draws: page geometry must not change under a live stroke */
+  readonly paused: boolean;
   requestRender(view: PageView): void;
 }
 
@@ -100,6 +102,8 @@ export class PageView {
   /** while set, these objects are drawn instead of the model's (live erasing) */
   override: AnyObj[] | null = null;
   onTextReady: (() => void) | null = null;
+  /** the annotation bitmaps changed scale / region (live content must be repainted) */
+  onGeometry: (() => void) | null = null;
 
   constructor(readonly index: number, readonly meta: PageMeta, private host: PageHost) {
     this.el.className = 'page';
@@ -182,7 +186,15 @@ export class PageView {
   async render(): Promise<void> {
     if (this.destroyed) return;
     const { session } = this.host;
-    if (!this.proxy) this.proxy = await session.pdf.getPage(this.index + 1);
+    if (!this.proxy) {
+      try {
+        this.proxy = await session.pdf.getPage(this.index + 1);
+      } catch (e) {
+        // the document swapped its PDF while this view waited; a new view takes over
+        if (this.destroyed) return;
+        throw e;
+      }
+    }
     if (this.destroyed) return;
     this.task?.cancel();
     const s = this.scale;
@@ -205,11 +217,16 @@ export class PageView {
     try {
       await task.promise;
     } catch (e) {
-      if ((e as { name?: string })?.name === 'RenderingCancelledException') return;
+      if ((e as { name?: string })?.name === 'RenderingCancelledException' || this.destroyed) return;
       throw e;
     }
     if (this.destroyed || this.task !== task) return;
     this.task = null;
+    if (this.host.paused) {
+      // a stroke started while this page rendered: swap the bitmap after the stroke
+      this.host.requestRender(this);
+      return;
+    }
     // swap in the new bitmap together with the annotation layers
     this.rs = s;
     this.dpr = dpr;
@@ -221,6 +238,7 @@ export class PageView {
     this.placeLayers();
     this.redrawAnnotations();
     this.buildTextLayer();
+    this.onGeometry?.();
   }
 
   cancel(): void {
@@ -371,6 +389,7 @@ export class PageView {
       this.placeLayers();
       this.redrawAnnotations();
       this.host.requestRender(this);
+      this.onGeometry?.();
     }
   }
 
@@ -378,14 +397,26 @@ export class PageView {
 
   /** Context in page units (pt) of the live layer; created on demand. */
   liveCtx(): CanvasRenderingContext2D {
+    if (!this.rs) {
+      // page not rendered yet: give the vector layers a geometry so a stroke shows right away
+      this.rs = this.scale;
+      this.dpr = window.devicePixelRatio || 1;
+      this.region = this.computeRegion(this.scale, this.dpr);
+    }
     if (!this.live) {
       this.live = new Layer('live', this.host.desynchronized);
       this.el.insertBefore(this.live.canvas, this.textEl);
-      this.live.setBitmap(this.region, this.dpr);
-      this.live.place(this.region, this.scale / this.rs);
     }
-    this.pageTransform(this.live.ctx);
-    return this.live.ctx;
+    // The region and scale change with every zoom, resize and (at high zoom) scroll. A bitmap
+    // sized for an old region would be stretched by CSS and the ink would land beside the pen.
+    // Every live drawer repaints from scratch each frame, so resizing here is safe.
+    const live = this.live;
+    const w = Math.max(1, Math.round(this.region.w * this.dpr));
+    const h = Math.max(1, Math.round(this.region.h * this.dpr));
+    if (live.canvas.width !== w || live.canvas.height !== h) live.setBitmap(this.region, this.dpr);
+    live.place(this.region, this.scale / this.rs);
+    this.pageTransform(live.ctx);
+    return live.ctx;
   }
 
   /** Context in css pixels relative to the page's top-left (for selection chrome, handles). */

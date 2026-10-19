@@ -89,8 +89,20 @@ function createWindow(paths = []) {
     if (TEST) win.showInactive();
     else win.show();
   });
-  win.on('resize', () => saveBounds(win));
-  win.on('move', () => saveBounds(win));
+  // window drags fire many events: write the file once the window rests
+  let boundsTimer;
+  const rememberBounds = () => {
+    clearTimeout(boundsTimer);
+    boundsTimer = setTimeout(() => {
+      if (!win.isDestroyed()) saveBounds(win);
+    }, 400);
+  };
+  win.on('resize', rememberBounds);
+  win.on('move', rememberBounds);
+  win.on('close', () => {
+    clearTimeout(boundsTimer);
+    saveBounds(win);
+  });
   const send = (channel, ...args) => {
     if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(channel, ...args);
   };

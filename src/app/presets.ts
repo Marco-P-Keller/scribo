@@ -55,7 +55,11 @@ export function movePreset(id: string, toIndex: number): void {
 /** Choose the most recently used favourite of the given kind (keyboard shortcuts). */
 export function selectToolKind(tool: 'pen' | 'highlighter'): void {
   const cur = currentPreset();
-  if (cur.tool === tool) return;
+  if (cur.tool === tool) {
+    // the favourite is already right; the active tool may be another one (lasso, eraser, …)
+    settings.set('tool', tool);
+    return;
+  }
   const p = favorites().find((x) => x.tool === tool);
   if (p) selectPreset(p.id);
   else {

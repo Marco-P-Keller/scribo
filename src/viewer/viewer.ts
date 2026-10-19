@@ -28,6 +28,8 @@ export interface ViewerEvents extends Record<string, unknown> {
   pages: undefined;
   /** the text layer of a page finished building */
   textready: number;
+  /** a page's annotation bitmaps got a new scale or region */
+  geometry: number;
 }
 
 export class Viewer extends Emitter<ViewerEvents> implements PageHost {
@@ -57,6 +59,8 @@ export class Viewer extends Emitter<ViewerEvents> implements PageHost {
   private rendering = false;
   private pendingZoom: { factor: number; fx: number; fy: number } | null = null;
   private resizeObserver: ResizeObserver;
+  /** reasons that currently hold page re-renders ('input', 'swap') */
+  private holds = new Set<string>();
   private lastDpr = window.devicePixelRatio;
 
   constructor() {
@@ -223,6 +227,7 @@ export class Viewer extends Emitter<ViewerEvents> implements PageHost {
       if (!this.views.has(i)) {
         const v = new PageView(i, metas[i], this);
         v.onTextReady = () => this.emit('textready', i);
+        v.onGeometry = () => this.emit('geometry', i);
         this.views.set(i, v);
         this.content.append(v.el);
         this.positionView(v);
@@ -257,14 +262,29 @@ export class Viewer extends Emitter<ViewerEvents> implements PageHost {
 
   requestRender(view: PageView): void {
     this.queue.add(view);
-    if (!this.rendering) queueMicrotask(() => void this.pump());
+    if (!this.rendering && !this.paused) queueMicrotask(() => void this.pump());
+  }
+
+  get paused(): boolean {
+    return this.holds.size > 0;
+  }
+
+  /**
+   * Hold page re-renders while the pen draws (they would move the live layer under the
+   * stroke) and while the document swaps its PDF (old page numbers, new file).
+   */
+  setPaused(on: boolean, reason = 'input'): void {
+    if (this.holds.has(reason) === on) return;
+    if (on) this.holds.add(reason);
+    else this.holds.delete(reason);
+    if (!this.paused && this.queue.size && !this.rendering) queueMicrotask(() => void this.pump());
   }
 
   private async pump(): Promise<void> {
     if (this.rendering) return;
     this.rendering = true;
     try {
-      while (this.queue.size) {
+      while (this.queue.size && !this.paused) {
         const mid = this.stage.scrollTop + this.stage.clientHeight / 2;
         let best: PageView | null = null;
         let bestD = Infinity;
@@ -346,6 +366,8 @@ export class Viewer extends Emitter<ViewerEvents> implements PageHost {
     i = clamp(i, 0, this.pageCount - 1);
     const y = this.tops[i] + (opts.offsetPt ?? 0) * this.scale - PAD_TOP / 2;
     this.stage.scrollTo({ top: Math.max(0, y), behavior: opts.smooth ? 'smooth' : 'auto' });
+    // a jump that ends where the last frame was (e.g. zoom + jump back) fires no scroll event
+    if (!opts.smooth) this.updateVisible();
   }
 
   // ── zoom ──────────────────────────────────────────────────────────────

@@ -285,6 +285,30 @@ await page.waitForFunction(() => window.__scribo.session?.file.untitled, null, {
 ok(await page.evaluate(() => window.__scribo.session.pageCount === 1 && window.__scribo.session.file.untitled === true), 'a new notebook opens with one page');
 ok(await page.evaluate(() => window.__scribo.settings.get('paper') === 'grid'), 'the chosen paper is remembered');
 
+// ── saving while drawing / while a page operation runs ─────────────────────
+{
+  const r = await page.evaluate(async () => {
+    const app = window.__scribo;
+    const s = app.session;
+    const n0 = s.pageCount;
+    // a page operation and a save started right after each other must not mix
+    const op = app.applyPageOps('x', (d) => [{ op: 'insertBlank', at: d.pageCount, w: 300, h: 300, template: 'blank' }]);
+    const saving = s.buildForSave();
+    await op;
+    // the build has captured the document once the page operation is done; draw now
+    await new Promise((r) => setTimeout(r, 0));
+    s.model.add('late', 0, { id: 'late', t: 'shape', k: 'line', p: [10, 10, 50, 50], c: '#000', w: 1 });
+    const built = await saving;
+    s.markSaved(built, s.file);
+    const reopened = await s.constructor.open(built.bytes, { name: 'y.pdf' });
+    return { pages: reopened.pageCount, expected: n0 + 1, dirty: s.model.dirty, late: reopened.model.pages[0].some((o) => o.id === 'late') };
+  });
+  ok(r.pages === r.expected, `a save waits for the running page operation (${r.pages}/${r.expected} pages)`);
+  ok(r.dirty && !r.late, 'a stroke drawn while saving stays unsaved, so closing still asks');
+  await page.evaluate(() => window.__scribo.session.model.undo());
+  await page.evaluate(() => window.__scribo.session.model.undo());
+}
+
 // ── save roundtrip ──────────────────────────────────────────────────────────
 await openDoc(page, fixture());
 await page.keyboard.press('p');
@@ -296,6 +320,79 @@ const back = await page.evaluate(async () => {
   return s2.model.pages[0].map((o) => o.t).join(',');
 });
 ok(back === 'ink', `save + reopen keeps the stroke editable (${back})`);
+
+// ── ink lands under the pen in every view state (Windows-like 150 % display scaling) ──
+{
+  const ctx2 = await browser.newContext({ viewport: { width: 1280, height: 820 }, deviceScaleFactor: 1.5 });
+  const p2 = await ctx2.newPage();
+  p2.on('pageerror', (e) => {
+    console.log('✗ pageerror', e.message);
+    failures++;
+  });
+  await p2.goto(`${url}?e2e=1`);
+  await p2.waitForFunction(() => window.__scribo, null, { polling: 100 });
+  await openDoc(p2, fixture());
+  await p2.waitForTimeout(500);
+  const pen2 = new Pen(await ctx2.newCDPSession(p2));
+  const inkAt = (sel, x, y) => p2.evaluate(([sel, x, y]) => {
+    let n = 0;
+    for (const c of document.querySelectorAll(sel)) {
+      const r = c.getBoundingClientRect();
+      if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+      const kx = c.width / r.width, ky = c.height / r.height;
+      const d = c.getContext('2d').getImageData(Math.round((x - r.left - 4) * kx), Math.round((y - r.top - 4) * ky), Math.max(1, Math.round(8 * kx)), Math.max(1, Math.round(8 * ky))).data;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 90) n++;
+    }
+    return n;
+  }, [sel, x, y]);
+  const settle = () => p2.waitForFunction(() => window.__scribo.viewer.realized.every((v) => v.isCurrent()), null, { timeout: 10000 }).catch(() => undefined).then(() => p2.waitForTimeout(150));
+  const probe = async (label, x, y) => {
+    await pen2.hover(x - 60, y);
+    await pen2.send('mousePressed', x - 60, y, { force: 0.5, buttons: 1, button: 'left' });
+    for (let i = 1; i <= 12; i++) await pen2.send('mouseMoved', x - 60 + i * 5, y, { force: 0.5, buttons: 1, button: 'left' });
+    await p2.waitForTimeout(60);
+    const live = await inkAt('canvas.live', x - 20, y);
+    await pen2.send('mouseReleased', x, y, { force: 0, buttons: 0, button: 'left' });
+    await p2.waitForTimeout(60);
+    const done = await inkAt('canvas.ink', x - 20, y);
+    ok(live > 5 && done > 5, `ink under the pen while drawing and after lifting: ${label} (${live}/${done})`);
+  };
+  const zoom = (z) => p2.evaluate((z) => window.__scribo.viewer.setZoom(z), z);
+  await probe('initial', 600, 400);
+  await zoom(1.7); await settle();
+  await probe('after zooming in', 600, 420);
+  await zoom(0.7); await settle();
+  await probe('after zooming out', 640, 300);
+  await zoom(1.25);
+  await probe('while the re-render is pending', 600, 380);
+  await settle();
+  await zoom(4); await settle();
+  await p2.evaluate(() => window.__scribo.viewer.panBy(700, 900)); await settle();
+  await probe('at 400 % with a partial bitmap', 620, 450);
+  await p2.evaluate(() => window.__scribo.viewer.fitWidth()); await settle();
+  await p2.setViewportSize({ width: 1000, height: 760 }); await settle();
+  await probe('after resizing the window', 500, 400);
+  await p2.keyboard.press('l');
+  await p2.keyboard.press('p');
+  ok(await p2.evaluate(() => window.__scribo.editor.tool === 'pen'), 'P returns to the pen after another tool');
+
+  // a selection survives its page being scrolled away and rebuilt
+  await p2.evaluate(() => window.__scribo.viewer.setZoom(2));
+  await settle();
+  await p2.evaluate(() => window.__scribo.viewer.scrollToPage(0));
+  await settle();
+  await pen2.stroke([[300, 300, 0.5], [360, 320, 0.5], [420, 300, 0.5]]);
+  const id = await p2.evaluate(() => window.__scribo.session.model.pages[0].at(-1).id);
+  await p2.evaluate((id) => window.__scribo.editor.selection.set(window.__scribo.viewer.realized[0], [id]), id);
+  await p2.evaluate(() => window.__scribo.viewer.scrollToPage(3)); await settle();
+  await p2.evaluate(() => window.__scribo.viewer.scrollToPage(0)); await settle();
+  const linked = await p2.evaluate(() => { const s = window.__scribo.editor.selection; return s.page === window.__scribo.viewer.viewFor(0); });
+  const p0 = await p2.evaluate((id) => window.__scribo.session.model.pages[0].find((o) => o.id === id).p.slice(0, 2), id);
+  await pen2.stroke([[360, 318, 0.5], [380, 340, 0.5], [400, 360, 0.5]]);
+  const p1 = await p2.evaluate((id) => window.__scribo.session.model.pages[0].find((o) => o.id === id).p.slice(0, 2), id);
+  ok(linked && Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) > 10, 'a selection still works after its page was scrolled away and back');
+  await ctx2.close();
+}
 
 await browser.close();
 server.close();

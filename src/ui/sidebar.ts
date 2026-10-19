@@ -103,7 +103,10 @@ export class Sidebar {
         this.refreshTimer = window.setTimeout(() => this.refreshDirty(), 350);
         if (settings.get('sidebarTab') === 'notes' && this.visible) this.renderNotes();
       });
-      session.on('structure', () => this.renderTab());
+      session.on('structure', () => {
+        this.search.invalidate();
+        this.renderTab();
+      });
     }
     this.renderTab();
   }
@@ -214,7 +217,16 @@ export class Sidebar {
     if (!s || !el) return;
     const canvas = el.querySelector('canvas')!;
     const dpr = window.devicePixelRatio || 1;
-    const page = await s.pdf.getPage(i + 1);
+    const pdf = s.pdf;
+    if (i >= pdf.numPages) return;
+    let page: Awaited<ReturnType<typeof pdf.getPage>>;
+    try {
+      page = await pdf.getPage(i + 1);
+    } catch {
+      return; // the document was restructured meanwhile
+    }
+    // the thumbnails were rebuilt for a new page list while the page loaded
+    if (this.thumbs[i] !== el || s.pdf !== pdf) return;
     const k = (THUMB_W * dpr) / s.metas[i].w;
     const vp = page.getViewport({ scale: k });
     const tmp = document.createElement('canvas');

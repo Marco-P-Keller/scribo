@@ -168,3 +168,94 @@ describe('geometry', () => {
     expect(q.y).toBeCloseTo(6);
   });
 });
+
+describe('AnnotationModel undo queue', () => {
+  it('runs a fast second undo after a slow structural undo, not in between', async () => {
+    const m = new AnnotationModel(1);
+    const a = ink('a', [[0, 0], [10, 10]]);
+    m.add('ink', 0, a);
+    // a page operation: its undo restores the snapshot taken before it (which contains the stroke)
+    const snapshot = [[a]];
+    m.commit('structure', [], {
+      undo: async () => {
+        await new Promise((r) => setTimeout(r, 20));
+        m.setPages(snapshot.map((p) => p.slice()));
+      },
+      redo: () => undefined,
+    });
+    // Ctrl+Z pressed twice quickly
+    await Promise.all([m.undo(), m.undo()]);
+    expect(m.pages[0]).toEqual([]);
+    expect(m.canUndo).toBe(false);
+  });
+});
+
+describe('AnnotationModel saved state', () => {
+  it('keeps edits made while the file was written dirty', () => {
+    const m = new AnnotationModel(1);
+    m.add('a', 0, line('a'));
+    const savedAt = m.stateId;
+    m.add('b', 0, line('b')); // drawn while the save was running
+    m.markCleanAt(savedAt);
+    expect(m.dirty).toBe(true);
+  });
+
+  it('never treats a discarded branch as the saved state', async () => {
+    const m = new AnnotationModel(1);
+    m.add('a', 0, line('a'));
+    m.add('b', 0, line('b'));
+    m.markClean();
+    await m.undo();
+    m.add('c', 0, line('c'));
+    expect(m.dirty).toBe(true);
+  });
+});
+
+describe('AnnotationModel edits during a structure swap', () => {
+  it('replays a stroke drawn while a page operation is undone', async () => {
+    const m = new AnnotationModel(2);
+    const a = ink('a', [[0, 0], [10, 10]]);
+    m.add('ink', 0, a);
+    const snapshot = [[a], []];
+    m.commit('structure', [], {
+      undo: async () => {
+        await new Promise((r) => setTimeout(r, 20));
+        m.setPages(snapshot.map((p) => p.slice()));
+      },
+      redo: () => undefined,
+    });
+    const undoing = m.undo();
+    // the user draws on page 1 while the PDF reloads
+    await new Promise((r) => setTimeout(r, 5));
+    m.add('ink', 1, ink('b', [[0, 0], [5, 5]]));
+    await undoing;
+    expect(m.pages[1].map((o) => o.id)).toEqual(['b']);
+    expect(m.canRedo).toBe(false);
+    await m.undo();
+    expect(m.pages[1]).toEqual([]);
+    expect(m.pages[0].map((o) => o.id)).toEqual(['a']);
+  });
+});
+
+describe('AnnotationModel replay after a swap', () => {
+  it('drops an edit of an object that the swap itself changed', async () => {
+    const m = new AnnotationModel(1);
+    const a = ink('a', [[0, 0], [10, 10]]);
+    m.add('ink', 0, a);
+    const rotated = { ...a, p: [10, 0, 0.5, 0, 10, 0.5] };
+    // a page rotation transformed the stroke; undoing it restores the original object
+    m.commit('rotate', [{ page: 0, id: 'a', before: a, after: rotated, index: 0 }], {
+      undo: async () => {
+        await new Promise((r) => setTimeout(r, 20));
+        m.setPages([[rotated]]);
+      },
+      redo: () => undefined,
+    });
+    const undoing = m.undo();
+    await new Promise((r) => setTimeout(r, 5));
+    // the user drags the (still rotated) stroke meanwhile
+    m.replace('move', 0, [{ ...rotated, p: rotated.p.map((v, i) => (i % 3 === 2 ? v : v + 5)) }]);
+    await undoing;
+    expect(m.pages[0][0]).toBe(a);
+  });
+});

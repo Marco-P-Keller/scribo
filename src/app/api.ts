@@ -22,7 +22,7 @@ export interface AppApi {
   showShortcuts(): void;
   insertBlankPage(): void;
   newNotebook(): void;
-  applyPageOps(label: string, ops: StructureOp[]): Promise<void>;
+  applyPageOps(label: string, ops: StructureOp[] | ((s: DocSession) => StructureOp[])): Promise<void>;
   gotoDestination(dest: unknown): Promise<void>;
   toggleFullscreen(): void;
   toast(message: string, kind?: 'info' | 'error'): void;

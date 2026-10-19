@@ -73,7 +73,7 @@ const PEN_MEMORY_MS = 700;
 export class InputController {
   readonly panTool: PanTool;
   private stage: HTMLElement;
-  private active: Active | null = null;
+  private current: Active | null = null;
   private touches = new Map<number, Touch>();
   private pinch: { dist: number; cx: number; cy: number } | null = null;
   private penHoverButtons = 0;
@@ -96,6 +96,11 @@ export class InputController {
     s.addEventListener('pointerup', this.onUp);
     s.addEventListener('pointercancel', this.onCancel);
     s.addEventListener('pointerleave', this.onLeave);
+    // a stroke whose pointer got lost (capture taken away, window lost focus) must still end
+    s.addEventListener('lostpointercapture', (e) => {
+      if (this.active?.id === e.pointerId && this.active.type !== 'touch') this.finish(e);
+    });
+    window.addEventListener('blur', () => this.cancelActive());
     s.addEventListener('contextmenu', (e) => e.preventDefault());
     // a pen drag on PDF text must move / draw, not start a native text selection
     s.addEventListener('selectstart', (e) => {
@@ -103,6 +108,16 @@ export class InputController {
     });
     s.addEventListener('dblclick', this.onDbl);
     s.addEventListener('wheel', this.onWheel, { passive: false });
+  }
+
+  /** the running stroke / drag; page re-renders wait while one is active (panning excluded) */
+  private get active(): Active | null {
+    return this.current;
+  }
+
+  private set active(a: Active | null) {
+    this.current = a;
+    this.d.viewer.setPaused(!!a && a.tool.id !== 'pan');
   }
 
   // ── helpers ───────────────────────────────────────────────────────────
@@ -351,6 +366,8 @@ export class InputController {
   };
 
   private onLeave = (e: PointerEvent): void => {
+    // without pointer capture (contact reported as a move) the stroke ends at the edge of the stage
+    if (this.active?.id === e.pointerId && this.active.type !== 'touch' && !this.stage.hasPointerCapture(e.pointerId)) this.finish(e);
     if (e.pointerType === 'pen') {
       this.penHoverButtons = 0;
       this.d.onPenInfo?.(null);
@@ -537,6 +554,7 @@ export class InputController {
     const a = this.active;
     if (!a) return;
     this.active = null;
+    this.touchTool = null;
     a.tool.cancel();
   }
 

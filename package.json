@@ -1,7 +1,7 @@
 {
   "name": "scribo",
   "productName": "Scribo",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "PDF-Editor für handschriftliche Notizen – druckempfindliche Tinte, Formerkennung, Stifttasten.",
   "author": {
     "name": "Marco Keller",
@@ -28,7 +28,8 @@
     "sample": "node scripts/make-sample.mjs",
     "build:web": "vite build --base=./",
     "pretest": "node scripts/prepare-assets.mjs",
-    "test:e2e:browser": "node tests/e2e/browser.mjs"
+    "test:e2e:browser": "node tests/e2e/browser.mjs",
+    "test:stress": "node tests/e2e/stress.mjs"
   },
   "devDependencies": {
     "@expo-google-fonts/caveat": "^0.4.2",

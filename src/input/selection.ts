@@ -73,6 +73,21 @@ export class Selection extends Emitter<SelectionEvents> {
     this.emit('change', undefined);
   }
 
+  /**
+   * Pages far from the viewport are torn down and rebuilt when they come back. Follow the
+   * selection to the page's current view and repaint the chrome (also after zoom / re-render).
+   */
+  relink(): void {
+    if (!this.page) return;
+    const v = this.viewer.viewFor(this.page.index);
+    if (!v) return;
+    if (v !== this.page) {
+      this.page = v;
+      this.drag = null;
+    }
+    if (!this.drag?.moved) this.draw();
+  }
+
   /** drop selection ids that no longer exist (after undo / delete) and refresh the chrome */
   refresh(): void {
     if (!this.page) return;

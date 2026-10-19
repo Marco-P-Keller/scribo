@@ -56,14 +56,25 @@ export class SearchController extends Emitter<Events> {
     this.emit('change', undefined);
   }
 
+  /** Pages were inserted, removed or moved: cached texts belong to old page numbers. */
+  invalidate(): void {
+    this.texts.clear();
+    if (this.query) void this.search(this.query);
+  }
+
   private async pageText(i: number): Promise<string> {
     let t = this.texts.get(i);
     if (t === undefined) {
-      const page = await this.session!.pdf.getPage(i + 1);
-      const tc = await page.getTextContent();
-      t = tc.items.map((it) => ('str' in it ? it.str : '')).join('').toLowerCase();
-      page.cleanup();
-      this.texts.set(i, t);
+      const pdf = this.session!.pdf;
+      try {
+        const page = await pdf.getPage(i + 1);
+        const tc = await page.getTextContent();
+        t = tc.items.map((it) => ('str' in it ? it.str : '')).join('').toLowerCase();
+        page.cleanup();
+      } catch {
+        return ''; // restructured while searching; the search is re-run
+      }
+      if (this.session?.pdf === pdf) this.texts.set(i, t);
     }
     return t;
   }
