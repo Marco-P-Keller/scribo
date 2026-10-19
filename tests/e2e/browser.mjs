@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { PDFDocument, degrees } from 'pdf-lib';
-import { fixture, openDoc, Pen, wave, circle } from './helpers.mjs';
+import { fixture, openDoc, pinLayout, Pen, wave, circle } from './helpers.mjs';
 
 const dist = join(new URL('../..', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'), 'dist');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.png': 'image/png', '.json': 'application/json' };
@@ -358,6 +358,34 @@ ok(back === 'ink', `save + reopen keeps the stroke editable (${back})`);
     ok(live > 5 && done > 5, `ink under the pen while drawing and after lifting: ${label} (${live}/${done})`);
   };
   const zoom = (z) => p2.evaluate((z) => window.__scribo.viewer.setZoom(z), z);
+  // a mixed document (portrait pages and a landscape slide): fit width keeps every page inside the
+  // window, whichever page is current
+  {
+    const fitFrom = (i) => p2.evaluate(async (i) => {
+      const v = window.__scribo.viewer;
+      v.scrollToPage(i);
+      await new Promise((r) => setTimeout(r, 150));
+      v.fitWidth();
+      await new Promise((r) => setTimeout(r, 150));
+      const widths = window.__scribo.session.metas.map((m) => m.w);
+      return { zoom: v.zoom, overflow: v.stage.scrollWidth - v.stage.clientWidth, mixed: new Set(widths.map(Math.round)).size > 1 };
+    }, i);
+    const a = await fitFrom(0);
+    const b = await fitFrom(2);
+    ok(a.mixed, 'fixture mixes page widths');
+    ok(a.overflow <= 1 && b.overflow <= 1 && Math.abs(a.zoom - b.zoom) < 1e-6, `fit width keeps every page in the window (overflow ${a.overflow}/${b.overflow}, zoom ${a.zoom.toFixed(3)}/${b.zoom.toFixed(3)})`);
+    const opened = await p2.evaluate(async () => {
+      const app = window.__scribo;
+      const data = await app.session.buildBytes({ flatten: false });
+      await app.openFile({ name: 'again.pdf', data });
+      await new Promise((r) => setTimeout(r, 300));
+      const v = app.viewer;
+      return { fit: v.fit, overflow: v.stage.scrollWidth - v.stage.clientWidth };
+    });
+    ok(opened.fit === 'width' && opened.overflow <= 1, `a mixed document opens fitted to its widest page (${opened.fit}, overflow ${opened.overflow})`);
+    await pinLayout(p2);
+    await settle();
+  }
   await probe('initial', 600, 400);
   await zoom(1.7); await settle();
   await probe('after zooming in', 600, 420);

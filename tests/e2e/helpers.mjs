@@ -10,6 +10,22 @@ export async function openDoc(page, b64, name = 'Vorlesung.pdf') {
     await window.__scribo.openFile({ name, data });
   }, [b64, name]);
   await page.waitForFunction(() => window.__scribo.viewer.realized.some((v) => v.rendered), null, { timeout: 15000 });
+  await pinLayout(page);
+}
+
+/**
+ * The tests write at fixed window positions: put the document in one known layout (150 %, top of
+ * page 1, centred) instead of depending on the initial zoom policy.
+ */
+export async function pinLayout(page, zoom = 1.5) {
+  await page.evaluate((zoom) => {
+    const v = window.__scribo.viewer;
+    v.setZoom(zoom);
+    v.stage.scrollTop = 0;
+    v.stage.scrollLeft = (v.stage.scrollWidth - v.stage.clientWidth) / 2;
+  }, zoom);
+  await page.waitForFunction(() => window.__scribo.viewer.realized.some((v) => v.index === 0 && v.rendered), null, { timeout: 15000 });
+  await page.waitForTimeout(100);
 }
 
 /** Real (trusted) pen events through the DevTools protocol. */

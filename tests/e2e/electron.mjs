@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { PDFDocument, PDFName, PDFDict } from 'pdf-lib';
-import { Pen, wave, circle, launchElectron } from './helpers.mjs';
+import { Pen, wave, circle, launchElectron, pinLayout } from './helpers.mjs';
 
 const root = resolve(new URL('../..', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'));
 const dir = mkdtempSync(join(tmpdir(), 'scribo-e2e-'));
@@ -32,6 +32,7 @@ async function launch() {
   log('waiting for document');
   await page.waitForFunction(() => window.__scribo?.session?.pageCount > 0, null, { timeout: 30000, polling: 100 });
   await page.waitForFunction(() => window.__scribo.viewer.realized.some((v) => v.rendered), null, { timeout: 30000, polling: 100 });
+  await pinLayout(page);
   return { app, page };
 }
 

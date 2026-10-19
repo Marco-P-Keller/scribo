@@ -129,15 +129,33 @@ export class Viewer extends Emitter<ViewerEvents> implements PageHost {
     this.stage.scrollLeft = Math.max(0, (this.contentW - this.stage.clientWidth) / 2);
   }
 
+  /**
+   * The widest and the tallest page. One zoom applies to all pages, so fitting to these keeps every
+   * page of a mixed document (portrait pages and landscape slides) inside the window.
+   */
+  private extent(): { w: number; h: number } | null {
+    const metas = this.session.metas;
+    if (!metas.length) return null;
+    let w = 0;
+    let h = 0;
+    for (const m of metas) {
+      w = Math.max(w, m.w);
+      h = Math.max(h, m.h);
+    }
+    return { w, h };
+  }
+
   /** Slides fit the whole page, documents fit the width; very large screens don't blow pages up. */
   private initialZoom(): { zoom: number; fit: FitMode } {
-    const m = this.session.metas[0];
-    if (!m) return { zoom: 1, fit: 'none' };
+    const first = this.session.metas[0];
+    const m = this.extent();
+    if (!first || !m) return { zoom: 1, fit: 'none' };
     const w = this.stage.clientWidth || 1000;
     const h = this.stage.clientHeight || 700;
     const fitW = (w - 2 * PAD_X) / (m.w * CSS_PER_PT);
     const fitH = (h - PAD_TOP - 40) / (m.h * CSS_PER_PT);
-    const landscape = m.w > m.h;
+    // the first page says what the document is: a slide deck or pages to read
+    const landscape = first.w > first.h;
     const z = landscape ? Math.min(fitW, fitH) : fitW;
     const zoom = clamp(z, 0.4, 1.5);
     return { zoom, fit: zoom === z ? (landscape ? 'page' : 'width') : 'none' };
@@ -422,14 +440,14 @@ export class Viewer extends Emitter<ViewerEvents> implements PageHost {
   }
 
   fitWidth(anchor = true): void {
-    const m = this.session.metas[this.current] ?? this.session.metas[0];
+    const m = this.extent();
     if (!m) return;
     const z = (this.stage.clientWidth - 2 * PAD_X) / (m.w * CSS_PER_PT);
     this.applyFit(clamp(z, MIN_ZOOM, 4), 'width', anchor);
   }
 
   fitPage(anchor = true): void {
-    const m = this.session.metas[this.current] ?? this.session.metas[0];
+    const m = this.extent();
     if (!m) return;
     const zw = (this.stage.clientWidth - 2 * PAD_X) / (m.w * CSS_PER_PT);
     const zh = (this.stage.clientHeight - PAD_TOP - 24) / (m.h * CSS_PER_PT);
