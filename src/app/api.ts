@@ -20,7 +20,8 @@ export interface AppApi {
   toggleSidebar(tab?: SidebarTab): void;
   showSettings(): void;
   showShortcuts(): void;
-  insertBlankPage(): void;
+  /** asks for paper and size, then inserts after `after` (default: the current page) */
+  insertBlankPage(after?: number): void;
   newNotebook(): void;
   applyPageOps(label: string, ops: StructureOp[] | ((s: DocSession) => StructureOp[])): Promise<void>;
   gotoDestination(dest: unknown): Promise<void>;

@@ -19,7 +19,7 @@ addStrings(
     'sb.searchPlaceholder': 'Im Dokument suchen', 'sb.noResults': 'Keine Treffer', 'sb.searching': 'Suche läuft …',
     'sb.hits': '{n} Treffer', 'sb.hit1': '1 Treffer', 'sb.noOutline': 'Dieses PDF hat kein Inhaltsverzeichnis.',
     'sb.noNotes': 'Noch keine Notizen oder Textfelder.', 'sb.page': 'Seite {n}',
-    'pg.rotateR': 'Nach rechts drehen', 'pg.rotateL': 'Nach links drehen', 'pg.duplicate': 'Seite duplizieren', 'pg.insert': 'Leere Seite danach einfügen',
+    'pg.rotateR': 'Nach rechts drehen', 'pg.rotateL': 'Nach links drehen', 'pg.duplicate': 'Seite duplizieren', 'pg.insert': 'Seite danach einfügen …',
     'pg.delete': 'Seite löschen', 'pg.deleteMany': '{n} Seiten löschen', 'pg.deleteTitle': 'Seiten löschen?', 'pg.deleteMsg': 'Die Seiten und ihre Anmerkungen werden entfernt. Rückgängig stellt sie wieder her.',
     'pg.deleteDo': 'Löschen', 'pg.rotated': 'Seite gedreht', 'pg.deleted': 'Seite gelöscht', 'pg.moved': 'Seiten verschoben',
   },
@@ -28,7 +28,7 @@ addStrings(
     'sb.searchPlaceholder': 'Search in document', 'sb.noResults': 'No results', 'sb.searching': 'Searching …',
     'sb.hits': '{n} results', 'sb.hit1': '1 result', 'sb.noOutline': 'This PDF has no table of contents.',
     'sb.noNotes': 'No notes or text boxes yet.', 'sb.page': 'Page {n}',
-    'pg.rotateR': 'Rotate right', 'pg.rotateL': 'Rotate left', 'pg.duplicate': 'Duplicate page', 'pg.insert': 'Insert blank page after',
+    'pg.rotateR': 'Rotate right', 'pg.rotateL': 'Rotate left', 'pg.duplicate': 'Duplicate page', 'pg.insert': 'Insert page after …',
     'pg.delete': 'Delete page', 'pg.deleteMany': 'Delete {n} pages', 'pg.deleteTitle': 'Delete pages?', 'pg.deleteMsg': 'The pages and their annotations are removed. Undo brings them back.',
     'pg.deleteDo': 'Delete', 'pg.rotated': 'Page rotated', 'pg.deleted': 'Page deleted', 'pg.moved': 'Pages moved',
   },
@@ -303,10 +303,7 @@ export class Sidebar {
       {
         label: t('pg.insert'),
         icon: 'newPage',
-        onClick: () => {
-          const m = this.session!.metas[pages[pages.length - 1]];
-          void this.app.applyPageOps(t('pg.insert'), [{ op: 'insertBlank', at: pages[pages.length - 1] + 1, w: m.w, h: m.h, template: settings.get('paper') }]);
-        },
+        onClick: () => this.app.insertBlankPage(pages[pages.length - 1]),
       },
       { separator: true },
       {

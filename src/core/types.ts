@@ -35,6 +35,8 @@ export interface InkObj extends Base {
   p: number[];
   /** pressure was synthesised from speed (mouse / finger) */
   sim?: 1;
+  /** smoothing 0..1 chosen when the stroke was written; missing = 0.5 */
+  sm?: number;
 }
 
 export type ShapeKind = 'line' | 'arrow' | 'rect' | 'ellipse' | 'poly' | 'polyline';

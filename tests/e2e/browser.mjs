@@ -72,6 +72,19 @@ const setting = (k, v) => page.evaluate(([k, v]) => window.__scribo.settings.set
   await pen.send('mouseReleased', pts.at(-1)[0], pts.at(-1)[1], { force: 0, buttons: 0, button: 'left' });
 }
 ok((await objs()).join() === 'ink:', 'pen stroke is stored');
+{
+  // pressure does not change the width by default; switched on, it does
+  const widths = () => page.evaluate(() => { const p = window.__scribo.session.model.pages[0].at(-1).p; return new Set(p.filter((_, i) => i % 3 === 2)).size; });
+  ok((await widths()) === 1, 'by default pressure does not change the line width');
+  await setting('pressureWidth', true);
+  await setting('smoothing', 0.9);
+  await pen.stroke(wave(300, 520, 300));
+  const last = await page.evaluate(() => window.__scribo.session.model.pages[0].at(-1));
+  ok((await widths()) > 3 && last.sm === 0.9, 'switched on, pressure changes the width; the smoothing is stored with the stroke');
+  await page.keyboard.press('Control+z');
+  await setting('pressureWidth', false);
+  await setting('smoothing', 0.5);
+}
 // eraser button (code 32, without the tip bit); CDP can't send it, so use synthetic pointer events
 const synth = (kind, x, y, buttons, pressure, button = -1) => page.evaluate(([kind, x, y, buttons, pressure, button]) => {
   window.__scribo.viewer.stage.dispatchEvent(new PointerEvent(kind, { bubbles: true, cancelable: true, pointerId: 77, pointerType: 'pen', clientX: x, clientY: y, buttons, pressure, button }));
@@ -190,10 +203,19 @@ await page.evaluate(() => window.__scribo.applyPageOps('x', [{ op: 'insertBlank'
 ok((await page.evaluate(() => window.__scribo.session.pageCount)) === 5, 'blank page inserted');
 await page.evaluate(() => window.__scribo.session.model.undo());
 ok((await page.evaluate(() => window.__scribo.session.pageCount)) === 4, 'page insertion can be undone');
-await page.evaluate(() => window.__scribo.settings.set('paper', 'grid'));
 await page.evaluate(() => window.__scribo.viewer.addPageButton.click());
+await page.waitForSelector('.page-setup');
+await page.locator('.paper-card').nth(2).click();
+await page.locator('.page-setup .seg', { hasText: 'A5' }).click();
+await page.locator('.page-setup .seg', { hasText: 'Querformat' }).click();
+await page.locator('.sheet .btn.primary').click();
 await page.waitForFunction(() => window.__scribo.session.pageCount === 5, null, { timeout: 8000 }).catch(() => undefined);
 ok((await page.evaluate(() => window.__scribo.session.pageCount)) === 5, '"add page" appends a page');
+{
+  const m = await page.evaluate(() => window.__scribo.session.metas[4]);
+  ok(Math.abs(m.w - 595.28) < 1 && Math.abs(m.h - 419.53) < 1, `"add page" uses the chosen size and orientation (${m.w} × ${m.h})`);
+  ok(await page.evaluate(() => window.__scribo.settings.get('paper') === 'grid' && window.__scribo.settings.get('pageSize') === 'A5'), 'paper and size are remembered');
+}
 await page.evaluate(() => window.__scribo.session.model.undo());
 ok((await objs()).length >= 6, 'annotations survive page operations');
 
@@ -279,11 +301,15 @@ await page.evaluate(() => window.__scribo.viewer.setZoom(1));
 page.once('dialog', (d) => d.accept());
 await page.evaluate(() => window.__scribo.newNotebook());
 await page.waitForSelector('.paper-picker');
-await page.locator('.paper-card').nth(1).click();
+ok((await page.locator('.page-setup .seg', { hasText: 'Wie Seite' }).count()) === 0, 'a new notebook offers no "same size"');
+await page.locator('.paper-card').nth(2).click();
+await page.locator('.page-setup .seg', { hasText: 'A3' }).click();
+await page.locator('.page-setup .seg', { hasText: 'Hochformat' }).click();
 await page.locator('.sheet .btn.primary').click();
 await page.waitForFunction(() => window.__scribo.session?.file.untitled, null, { timeout: 10000 }).catch(() => undefined);
 ok(await page.evaluate(() => window.__scribo.session.pageCount === 1 && window.__scribo.session.file.untitled === true), 'a new notebook opens with one page');
 ok(await page.evaluate(() => window.__scribo.settings.get('paper') === 'grid'), 'the chosen paper is remembered');
+ok(await page.evaluate(() => { const m = window.__scribo.session.metas[0]; return Math.abs(m.w - 841.89) < 1 && Math.abs(m.h - 1190.55) < 1; }), 'the notebook has the chosen size (A3 portrait)');
 
 // ── saving while drawing / while a page operation runs ─────────────────────
 {

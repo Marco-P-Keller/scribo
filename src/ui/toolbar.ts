@@ -549,7 +549,7 @@ export class Toolbar {
       { label: lbl('Flache Kopie exportieren …', 'Export flattened copy …'), icon: 'download', disabled: !has, onClick: () => void a.exportCopy(true) },
       { label: lbl('Drucken …', 'Print …'), icon: 'print', shortcut: 'Ctrl+P', disabled: !has, onClick: () => void a.print() },
       { separator: true },
-      { label: lbl('Leere Seite einfügen …', 'Insert blank page …'), icon: 'plus', disabled: !has, onClick: () => a.insertBlankPage() },
+      { label: lbl('Seite einfügen …', 'Insert page …'), icon: 'plus', disabled: !has, onClick: () => a.insertBlankPage() },
       { label: lbl('Bild einfügen …', 'Insert image …'), icon: 'image', disabled: !has, onClick: () => a.editor.pickImage() },
       { separator: true },
       { label: lbl('Neues Fenster', 'New window'), icon: 'file', shortcut: 'Ctrl+N', onClick: () => a.newWindow() },

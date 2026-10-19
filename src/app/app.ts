@@ -11,7 +11,7 @@ import { loadFonts } from '../render/fonts';
 import { drawObjects, setImageLoadHandler } from '../render/draw';
 import { isHighlight } from '../core/types';
 import { PdfError } from '../pdf/client';
-import type { StructureOp } from '../pdf/build';
+import type { BlankTemplate, StructureOp } from '../pdf/build';
 import { settings } from './settings';
 import { addRecent } from './recents';
 import type { Recent } from './recents';
@@ -23,7 +23,7 @@ import { showSettings, showShortcuts } from '../ui/settings-panel';
 import { confirmDialog, passwordDialog, sheet, toast } from '../ui/dialogs';
 import { h } from '../ui/dom';
 import { segmented } from '../ui/popover';
-import { paperPicker } from '../ui/paper';
+import { pageSetup } from '../ui/paper';
 import { icon } from '../ui/icons';
 import { createBlankPdf } from '../pdf/client';
 import { addStrings, lang, setLang, t } from '../ui/i18n';
@@ -34,7 +34,7 @@ addStrings(
     'app.modifiedTitle': 'Datei wurde außerhalb geändert', 'app.modifiedMsg': '„{name}“ wurde seit dem Öffnen von einem anderen Programm verändert. Überschreiben?', 'app.overwrite': 'Überschreiben',
     'app.denied': 'Die Datei ist gesperrt oder schreibgeschützt. Speichere sie unter einem anderen Namen.', 'app.encrypted': 'Dieses PDF ist passwortgeschützt. Anmerkungen können hier nicht eingebettet werden.',
     'app.unsavedTitle': 'Änderungen speichern?', 'app.exported': 'Kopie exportiert', 'app.updateReady': 'Update bereit – jetzt neu starten',
-    'app.blankTitle': 'Leere Seite einfügen', 'app.insert': 'Einfügen', 'app.addPage': 'Seite hinzufügen', 'app.pageAdded': 'Seite hinzugefügt',
+    'app.blankTitle': 'Seite einfügen', 'app.insert': 'Einfügen', 'app.add': 'Hinzufügen', 'app.addPage': 'Seite hinzufügen', 'app.pageAdded': 'Seite hinzugefügt',
     'app.newTitle': 'Neues Notizbuch', 'app.create': 'Erstellen', 'app.newName': 'Notizen',
     'app.printTitle': 'Drucken', 'app.printAll': 'Alle Seiten', 'app.printCurrent': 'Aktuelle Seite', 'app.printRange': 'Bereich (z. B. 1-3, 5)', 'app.printGo': 'Drucken', 'app.printing': 'Bereite Druck vor …',
     'app.notPdf': 'Das ist keine PDF-Datei.', 'app.copySuffix': 'mit Notizen', 'app.flatSuffix': 'flach',
@@ -44,7 +44,7 @@ addStrings(
     'app.modifiedTitle': 'File was changed elsewhere', 'app.modifiedMsg': '“{name}” was modified by another program since you opened it. Overwrite?', 'app.overwrite': 'Overwrite',
     'app.denied': 'The file is locked or read-only. Save it under a different name.', 'app.encrypted': 'This PDF is password protected. Annotations cannot be embedded.',
     'app.unsavedTitle': 'Save changes?', 'app.exported': 'Copy exported', 'app.updateReady': 'Update ready – restart now',
-    'app.blankTitle': 'Insert blank page', 'app.insert': 'Insert', 'app.addPage': 'Add page', 'app.pageAdded': 'Page added',
+    'app.blankTitle': 'Insert page', 'app.insert': 'Insert', 'app.add': 'Add', 'app.addPage': 'Add page', 'app.pageAdded': 'Page added',
     'app.newTitle': 'New notebook', 'app.create': 'Create', 'app.newName': 'Notes',
     'app.printTitle': 'Print', 'app.printAll': 'All pages', 'app.printCurrent': 'Current page', 'app.printRange': 'Range (e.g. 1-3, 5)', 'app.printGo': 'Print', 'app.printing': 'Preparing print …',
     'app.notPdf': 'That is not a PDF file.', 'app.copySuffix': 'with notes', 'app.flatSuffix': 'flat',
@@ -547,40 +547,55 @@ export class App implements AppApi {
     }
   }
 
-  insertBlankPage(): void {
-    const s = this.session;
-    if (!s) return;
-    let paper = settings.get('paper');
-    void sheet<boolean>({
-      title: t('app.blankTitle'),
-      body: paperPicker(paper, (v) => (paper = v)),
+  /**
+   * Asks for paper, size and orientation of a new page. `ref` is the page next to it
+   * (offers "same size"). The choice is remembered for the next page.
+   */
+  private async askPage(title: string, confirm: string, ref?: { w: number; h: number }): Promise<{ template: BlankTemplate; w: number; h: number } | null> {
+    const setup = pageSetup({ template: settings.get('paper'), size: settings.get('pageSize'), orient: settings.get('pageOrient') }, ref);
+    const ok = await sheet<boolean>({
+      title,
+      body: setup.el,
       buttons: [
         { label: t('dlg.cancel'), value: false },
-        { label: t('app.insert'), value: true, primary: true },
+        { label: confirm, value: true, primary: true },
       ],
       cancelValue: false,
       wide: true,
-    }).then((ok) => {
-      if (!ok || this.session !== s) return;
-      settings.set('paper', paper);
-      const cur = this.viewer.currentPage;
-      const m = s.metas[cur];
-      void this.applyPageOps(t('app.blankTitle'), [{ op: 'insertBlank', at: cur + 1, w: m.w, h: m.h, template: paper }]).then(() => this.viewer.scrollToPage(cur + 1, { smooth: true }));
+    });
+    if (!ok) return null;
+    const v = setup.value();
+    settings.set('paper', v.template);
+    settings.set('pageOrient', v.orient);
+    // a notebook offers no "same size": its A4 fallback must not replace "same" for inserted pages
+    if (ref || v.size !== 'A4' || settings.get('pageSize') !== 'same') settings.set('pageSize', v.size);
+    return { template: v.template, w: v.w, h: v.h };
+  }
+
+  /** New page after `after` (default: the current page). */
+  insertBlankPage(after?: number): void {
+    const s = this.session;
+    if (!s) return;
+    const cur = Math.min(after ?? this.viewer.currentPage, s.pageCount - 1);
+    void this.askPage(t('app.blankTitle'), t('app.insert'), s.metas[cur]).then((p) => {
+      if (!p || this.session !== s) return;
+      void this.applyPageOps(t('app.blankTitle'), [{ op: 'insertBlank', at: cur + 1, w: p.w, h: p.h, template: p.template }]).then(() => this.viewer.scrollToPage(cur + 1, { smooth: true }));
     });
   }
 
-  /** "+" under the last page: one more page of the same size, on the last chosen paper. */
+  /** "+" under the last page: a new page at the end, on the paper of choice. */
   appendPage(): void {
     const s = this.session;
     if (!s) return;
-    const paper = settings.get('paper');
-    let at = 0;
-    // computed when it runs: a quick second click must add a second page, not the same one
-    void this.applyPageOps(t('app.addPage'), (doc) => {
-      at = doc.pageCount;
-      const m = doc.metas[at - 1];
-      return [{ op: 'insertBlank', at, w: m.w, h: m.h, template: paper }];
-    }).then(() => this.viewer.scrollToPage(at, { smooth: true }));
+    void this.askPage(t('app.addPage'), t('app.add'), s.metas[s.pageCount - 1]).then((p) => {
+      if (!p || this.session !== s) return;
+      let at = 0;
+      // computed when it runs: a second page added right after must land behind the first
+      void this.applyPageOps(t('app.addPage'), (doc) => {
+        at = doc.pageCount;
+        return [{ op: 'insertBlank', at, w: p.w, h: p.h, template: p.template }];
+      }).then(() => this.viewer.scrollToPage(at, { smooth: true }));
+    });
   }
 
   private refreshAddPage(): void {
@@ -589,41 +604,13 @@ export class App implements AppApi {
     b.hidden = !this.session;
   }
 
-  /** A new, empty notebook on the paper of choice (A4). Saving asks for a file name. */
+  /** A new, empty notebook on the paper, size and orientation of choice. Saving asks for a file name. */
   newNotebook(): void {
-    let paper = settings.get('paper');
-    let landscape = false;
-    const picker = h('div');
-    const paint = () => picker.replaceChildren(paperPicker(paper, (v) => (paper = v), landscape));
-    paint();
-    const orient = segmented(
-      [
-        { value: 'p' as const, label: t('paper.portrait') },
-        { value: 'l' as const, label: t('paper.landscape') },
-      ],
-      'p',
-      (v) => {
-        landscape = v === 'l';
-        paint();
-      },
-    );
-    orient.classList.add('paper-orient');
-    void sheet<boolean>({
-      title: t('app.newTitle'),
-      body: [picker, orient],
-      buttons: [
-        { label: t('dlg.cancel'), value: false },
-        { label: t('app.create'), value: true, primary: true },
-      ],
-      cancelValue: false,
-      wide: true,
-    }).then(async (ok) => {
-      if (!ok) return;
-      settings.set('paper', paper);
+    void this.askPage(t('app.newTitle'), t('app.create')).then(async (p) => {
+      if (!p) return;
       if (this.session && !(await this.confirmReplace())) return;
-      const [w, hh] = landscape ? [841.89, 595.28] : [595.28, 841.89];
       try {
-        const data = await createBlankPdf(w, hh, paper, 1);
+        const data = await createBlankPdf(p.w, p.h, p.template, 1);
         await this.openFile({ name: `${t('app.newName')}.pdf`, data });
         if (this.session) {
           this.session.file = { ...this.session.file, untitled: true };

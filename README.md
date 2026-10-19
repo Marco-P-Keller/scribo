@@ -29,7 +29,7 @@ Die Installation braucht keine Administratorrechte, Updates kommen automatisch v
 
 ## Funktionen
 
-- **Druckempfindliche Tinte** mit runden Strichenden, leichter Glättung und einstellbarem Druckeinfluss (Fineliner bis Füllfeder); der Strich erscheint live unter der Stiftspitze
+- **Tinte** mit runden Strichenden und einstellbarer **Glättung** (schwach bis stark); der Strich erscheint live unter der Stiftspitze. Gleichmäßig breit wie ein Fineliner oder, wenn eingeschaltet, **druckempfindlich** mit einstellbarer Stärke und Empfindlichkeit (bis Füllfeder)
 - **Stift & Textmarker** mit Farbe, Stärke und Deckkraft, als **Favoriten-Leiste** (Ziehen zum Umsortieren)
 - **Automatische Formerkennung**: Kreis, Ellipse, Rechteck, Dreieck, Linie – nach kurzem Ruhen des Stifts („Halten“) oder sofort beim Absetzen („Auto“)
 - **Stifttasten**: Taste 1 (Radiertaste, Code 32) radiert ganze Linien, Taste 2 (Seitentaste, Code 2) öffnet das Lasso; frei belegbar, mit Live-Test unter *Einstellungen*, in dem die gedrückte Taste aufleuchtet
@@ -37,8 +37,8 @@ Die Installation braucht keine Administratorrechte, Updates kommen automatisch v
 - **Radierer** (Linie oder Punkt), unbegrenzt **Rückgängig / Wiederholen**
 - **Formen** (Linie, Pfeil, Rechteck, Ellipse, Polygon, Linienzug) mit Füllung und Strichart, **Text** (4 Schriften), **Haftnotizen** (echte PDF-Kommentare), **Bilder**
 - **Textmarker auf PDF-Text**: Text markieren → hervorheben, unterstreichen, durchstreichen
-- **Neues Notizbuch** auf Notizpapier (liniert, 8 mm), Häuschenpapier (kariert, 5 mm), Punktraster oder leer, hoch oder quer
-- **Seiten**: Seiten mit Papiervorlage einfügen, „Seite hinzufügen“ unter der letzten Seite, drehen, sortieren, duplizieren, löschen
+- **Neues Notizbuch** auf leerem Papier, Notizpapier (liniert, 8 mm), Blockpapier (kariert, 5 mm) oder Punktraster, in A3, A4, A5, A6 oder Letter, hoch oder quer
+- **Seiten**: „Seite hinzufügen“ unter der letzten Seite oder Seite einfügen, jeweils mit Wahl von Papier, Grösse (auch „wie die Seite davor“) und Ausrichtung; drehen, sortieren, duplizieren, löschen
 - **Suche**, Gliederung, Miniaturen, Notizen-Übersicht, Drucken, Hell/Dunkel
 - **Touch**: Scrollen, Pinch-Zoom, Handballen-Erkennung
 

@@ -36,6 +36,9 @@ export class InkTool implements Tool {
   private raf = 0;
   private predicted: number[] = [];
   private filter = new PressureFilter(1);
+  /** pressure (or speed) changes the width of this stroke */
+  private varies = false;
+  private smoothing = 0.5;
   /** first raw pressure and whether every raw sample so far had exactly that value */
   private raw0 = -1;
   private rawFlat = true;
@@ -58,11 +61,13 @@ export class InkTool implements Tool {
     this.style = currentPreset();
     this.pointerType = e.pointerType;
     this.convert = e.page.converter();
-    this.sim = e.pointerType !== 'pen';
+    this.varies = settings.get('pressureWidth');
+    this.smoothing = settings.get('smoothing');
+    this.sim = this.varies && e.pointerType !== 'pen';
     this.pts = [];
     this.predicted = [];
     this.snapped = null;
-    this.filter = new PressureFilter(settings.get('pressureAmount'));
+    this.filter = new PressureFilter(this.varies ? settings.get('pressureAmount') : 0);
     this.raw0 = -1;
     this.rawFlat = true;
     for (const s of e.samples) this.push(s.x, s.y, s.p);
@@ -96,7 +101,7 @@ export class InkTool implements Tool {
     this.predicted = [];
     const last = this.pts.length ? this.pts[this.pts.length - 1] : 0.5;
     for (const s of e.predicted.slice(0, 2)) this.predicted.push(s.x, s.y, last);
-    if (!this.sim && this.pointerType === 'pen' && this.pts.length > 18 && this.rawFlat && Math.abs(this.raw0 - pressureCurve(0.5, settings.get('sensitivity'))) < 1e-3) {
+    if (this.varies && !this.sim && this.pointerType === 'pen' && this.pts.length > 18 && this.rawFlat && Math.abs(this.raw0 - pressureCurve(0.5, settings.get('sensitivity'))) < 1e-3) {
       // hardware without pressure reports a constant value: fall back to speed based width
       this.sim = true;
     }
@@ -208,6 +213,7 @@ export class InkTool implements Tool {
     const o: InkObj = { id: uid(), t: 'ink', c: st.color, w: st.width, p };
     if (this.id === 'highlighter') o.hl = 1;
     if (this.sim) o.sim = 1;
+    if (this.smoothing !== 0.5) o.sm = this.smoothing;
     if (st.opacity !== undefined && st.opacity < 1) o.o = st.opacity;
     return o;
   }
@@ -236,6 +242,7 @@ export class InkTool implements Tool {
     const live: InkObj = { id: 'live', t: 'ink', c: st.color, w: st.width, p: p.length < 6 ? [p[0], p[1], p[2], p[0] + 0.01, p[1], p[2]] : p };
     if (this.id === 'highlighter') live.hl = 1;
     if (this.sim) live.sim = 1;
+    if (this.smoothing !== 0.5) live.sm = this.smoothing;
     if (st.opacity !== undefined && st.opacity < 1) live.o = st.opacity;
     drawObj(ctx, live);
   }

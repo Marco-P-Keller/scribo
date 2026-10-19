@@ -18,7 +18,10 @@ addStrings(
     'set.input': 'Stift & Eingabe', 'set.finger': 'Mit dem Finger zeichnen', 'set.fingerHint': 'Aus: Finger scrollen und zoomen, nur der Stift schreibt.',
     'set.mouse': 'Mit der Maus zeichnen', 'set.palm': 'Handballen-Erkennung', 'set.palmHint': 'Berührungen werden ignoriert, solange der Stift am Bildschirm ist.',
     'set.pressure': 'Druckempfindlichkeit', 'set.pressureHint': 'Links: fester drücken für dicke Linien. Rechts: schon leichter Druck reicht.',
-    'set.pressureAmount': 'Einfluss des Drucks auf die Strichbreite', 'set.pressureAmountHint': 'Links: gleichmäßige Linie wie mit einem Fineliner. Rechts: kräftiger Schwung wie mit einer Füllfeder.',
+    'set.pressureWidth': 'Einfluss des Drucks auf die Strichbreite', 'set.pressureWidthHint': 'Aus: Jede Linie ist gleich breit wie mit einem Fineliner. Ein: Fester drücken gibt dickere Linien.',
+    'set.pressureAmount': 'Stärke des Einflusses', 'set.pressureAmountHint': 'Links: kaum Unterschied. Rechts: kräftiger Schwung wie mit einer Füllfeder.',
+    'set.smoothing': 'Glättung beim Schreiben', 'set.smoothingHint': 'Links: schwach, die Linie folgt jeder Bewegung des Stifts. Rechts: stark, ruhige und runde Linien.',
+    'set.weak': 'Schwach', 'set.strong': 'Stark',
     'set.snap': 'Formerkennung', 'set.lowLatency': 'Geringere Schreib-Verzögerung', 'set.lowLatencyHint': 'Experimentell. Bei Flackern oder fehlender Tinte ausschalten.',
     'set.buttons': 'Stifttasten', 'set.btn1': 'Seitentaste (Code 2)', 'set.btn2': 'Radiertaste / Radierer-Ende (Code 32)', 'set.btn3': 'Weitere Taste (Code 4)',
     'set.buttonsHint': 'Halte den Stift über das Testfeld und drücke eine Taste: Die passende Zeile leuchtet auf.',
@@ -40,7 +43,10 @@ addStrings(
     'set.input': 'Pen & input', 'set.finger': 'Draw with finger', 'set.fingerHint': 'Off: fingers scroll and zoom, only the pen writes.',
     'set.mouse': 'Draw with mouse', 'set.palm': 'Palm rejection', 'set.palmHint': 'Touches are ignored while the pen is near the screen.',
     'set.pressure': 'Pressure sensitivity', 'set.pressureHint': 'Left: press harder for thick lines. Right: light pressure is enough.',
-    'set.pressureAmount': 'How much pressure changes the line width', 'set.pressureAmountHint': 'Left: even line like a fineliner. Right: lively swell like a fountain pen.',
+    'set.pressureWidth': 'Pressure changes the line width', 'set.pressureWidthHint': 'Off: every line has the same width, like a fineliner. On: press harder for thicker lines.',
+    'set.pressureAmount': 'Strength', 'set.pressureAmountHint': 'Left: barely any difference. Right: lively swell like a fountain pen.',
+    'set.smoothing': 'Smoothing while writing', 'set.smoothingHint': 'Left: weak, the line follows every movement of the pen. Right: strong, calm and round lines.',
+    'set.weak': 'Weak', 'set.strong': 'Strong',
     'set.snap': 'Shape recognition', 'set.lowLatency': 'Lower writing latency', 'set.lowLatencyHint': 'Experimental. Turn off if you see flicker or missing ink.',
     'set.buttons': 'Pen buttons', 'set.btn1': 'Side button (code 2)', 'set.btn2': 'Eraser button / eraser end (code 32)', 'set.btn3': 'Other button (code 4)',
     'set.buttonsHint': 'Hold the pen over the test field and press a button: the matching row lights up.',
@@ -107,7 +113,7 @@ function penTestPad(onButtons: (bits: number) => void): { el: HTMLElement; dispo
       const tri: number[][] = [];
       for (let i = 0; i < flat.length; i += 3) tri.push([flat[i], flat[i + 1], flat[i + 2]]);
       if (tri.length === 1) tri.push([tri[0][0] + 0.01, tri[0][1], tri[0][2]]);
-      ctx.fill(outlinePath(getStroke(tri, strokeOptions({ w: 3.2 })) as [number, number][]));
+      ctx.fill(outlinePath(getStroke(tri, strokeOptions({ w: 3.2, sm: settings.get('smoothing') })) as [number, number][]));
     }
   };
   const pos = (e: PointerEvent) => {
@@ -115,12 +121,12 @@ function penTestPad(onButtons: (bits: number) => void): { el: HTMLElement; dispo
     return [e.clientX - r.left, e.clientY - r.top];
   };
   const add = (ev: PointerEvent) => {
-    const raw = ev.pointerType === 'pen' ? pressureCurve(ev.pressure, settings.get('sensitivity')) : 0.5;
+    const raw = ev.pointerType === 'pen' && settings.get('pressureWidth') ? pressureCurve(ev.pressure, settings.get('sensitivity')) : 0.5;
     cur!.push([...pos(ev), ev.pointerType === 'pen' ? filter.next(raw) : 0.5]);
   };
   const begin = (e: PointerEvent) => {
     clearTimeout(fade);
-    filter = new PressureFilter(settings.get('pressureAmount'));
+    filter = new PressureFilter(settings.get('pressureWidth') ? settings.get('pressureAmount') : 0);
     cur = [];
     strokes.push(cur);
     add(e);
@@ -191,6 +197,21 @@ export async function showSettings(app: AppApi): Promise<void> {
   };
   paintButtons();
 
+  // amount and sensitivity only matter while pressure changes the width
+  const pressureFields = [
+    field(t('set.pressureAmount'), slider({ min: 0, max: 1, step: 0.05, value: s.get('pressureAmount'), format: (v) => `${Math.round(v * 100)} %`, onInput: (v) => s.set('pressureAmount', v) }), t('set.pressureAmountHint')),
+    field(t('set.pressure'), slider({ min: 0, max: 1, step: 0.05, value: s.get('sensitivity'), format: (v) => `${Math.round(v * 100)} %`, onInput: (v) => s.set('sensitivity', v) }), t('set.pressureHint')),
+  ];
+  const paintPressure = () => {
+    const on = s.get('pressureWidth');
+    for (const f of pressureFields) {
+      f.classList.toggle('off', !on);
+      f.querySelector('input')!.disabled = !on;
+    }
+  };
+  paintPressure();
+  const smoothing = (v: number) => (v <= 0.2 ? t('set.weak') : v >= 0.8 ? t('set.strong') : `${Math.round(v * 100)} %`);
+
   const section = (title: string, group: HTMLElement, foot?: string) =>
     h('section', null, h('h3', null, title), group, foot ? h('div.group-foot', null, foot) : null);
   const group = (...kids: HTMLElement[]) => h('div.group', null, kids);
@@ -225,8 +246,9 @@ export async function showSettings(app: AppApi): Promise<void> {
       row(t('set.finger'), toggle(s.get('fingerDraws'), (v) => s.set('fingerDraws', v)), t('set.fingerHint')),
       row(t('set.mouse'), toggle(s.get('mouseDraws'), (v) => s.set('mouseDraws', v))),
       row(t('set.palm'), toggle(s.get('palmRejection'), (v) => s.set('palmRejection', v)), t('set.palmHint')),
-      field(t('set.pressureAmount'), slider({ min: 0, max: 1, step: 0.05, value: s.get('pressureAmount'), format: (v) => `${Math.round(v * 100)} %`, onInput: (v) => s.set('pressureAmount', v) }), t('set.pressureAmountHint')),
-      field(t('set.pressure'), slider({ min: 0, max: 1, step: 0.05, value: s.get('sensitivity'), format: (v) => `${Math.round(v * 100)} %`, onInput: (v) => s.set('sensitivity', v) }), t('set.pressureHint')),
+      field(t('set.smoothing'), slider({ min: 0, max: 1, step: 0.05, value: s.get('smoothing'), format: smoothing, onInput: (v) => s.set('smoothing', v) }), t('set.smoothingHint')),
+      row(t('set.pressureWidth'), toggle(s.get('pressureWidth'), (v) => { s.set('pressureWidth', v); paintPressure(); }), t('set.pressureWidthHint')),
+      ...pressureFields,
       field(t('set.snap'), segmented(
         [
           { value: 'off' as SnapMode, label: t('snap.off') },

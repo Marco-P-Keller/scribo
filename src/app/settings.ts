@@ -3,6 +3,8 @@ import type { FontId, Preset, ShapeTool, SnapMode, ToolId } from '../core/types'
 import type { BlankTemplate } from '../pdf/build';
 
 export type PenAction = 'erase' | 'lasso' | 'select' | 'none';
+/** 'same' = the size of the page next to the new one */
+export type PageSize = 'same' | 'A3' | 'A4' | 'A5' | 'A6' | 'letter';
 
 export interface Settings {
   lang: 'auto' | 'de' | 'en';
@@ -14,8 +16,12 @@ export interface Settings {
   palmRejection: boolean;
   /** 0..1, 0.5 = linear */
   sensitivity: number;
+  /** pressure (or, without a pen, speed) changes the line width; off = even lines */
+  pressureWidth: boolean;
   /** how much pressure changes the line width: 0 = constant, 1 = full range */
   pressureAmount: number;
+  /** stroke smoothing: 0 = follows the pen exactly, 1 = strong; 0.5 = the original tuning */
+  smoothing: number;
   snap: SnapMode;
   penButtons: { barrel: PenAction; eraser: PenAction; middle: PenAction };
   eraserMode: 'stroke' | 'point';
@@ -24,8 +30,10 @@ export interface Settings {
   lowLatency: boolean;
   sidebar: boolean;
   sidebarTab: 'pages' | 'outline' | 'search' | 'notes';
-  /** paper of the last blank page / new notebook */
+  /** paper, size and orientation of the last blank page / new notebook */
   paper: BlankTemplate;
+  pageSize: PageSize;
+  pageOrient: 'p' | 'l';
   /** version of the stored settings (migrations) */
   schema: number;
 
@@ -51,7 +59,9 @@ export const DEFAULTS: Settings = {
   mouseDraws: true,
   palmRejection: true,
   sensitivity: 0.5,
+  pressureWidth: false,
   pressureAmount: 0.55,
+  smoothing: 0.5,
   snap: 'auto',
   // the eraser code (32) erases, the side button (2) selects
   penButtons: { barrel: 'lasso', eraser: 'erase', middle: 'none' },
@@ -62,6 +72,8 @@ export const DEFAULTS: Settings = {
   sidebar: false,
   sidebarTab: 'pages',
   paper: 'lined',
+  pageSize: 'same',
+  pageOrient: 'p',
   schema: 2,
 
   tool: 'pen',

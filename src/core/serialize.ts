@@ -104,6 +104,8 @@ function unpackInk(r: Record<string, unknown>): InkObj | null {
   const o: InkObj = { id: str(r.id, 40) || 'x', t: 'ink', c: col(r.c, '#000000'), w: Math.min(200, Math.max(0.1, num(r.w, 2))), p };
   if (r.hl) o.hl = 1;
   if (r.sim) o.sim = 1;
+  const sm = optNum(r.sm);
+  if (sm !== undefined) o.sm = Math.min(1, Math.max(0, sm));
   const op = optNum(r.o);
   if (op !== undefined) o.o = Math.min(1, Math.max(0, op));
   return o;

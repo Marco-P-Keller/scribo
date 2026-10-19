@@ -1,21 +1,34 @@
 import type { BlankTemplate } from '../pdf/build';
+import type { PageSize } from '../app/settings';
 import { h } from './dom';
 import { addStrings, t } from './i18n';
+import { field, segmented } from './popover';
 
 addStrings(
   {
-    'paper.blank': 'Leer', 'paper.lined': 'Notizpapier', 'paper.grid': 'Häuschenpapier', 'paper.dotted': 'Punktraster',
+    'paper.blank': 'Leere Seite', 'paper.lined': 'Notizpapier', 'paper.grid': 'Blockpapier', 'paper.dotted': 'Punktraster',
     'paper.linedSub': 'Liniert, 8 mm', 'paper.gridSub': 'Kariert, 5 mm', 'paper.dottedSub': 'Punkte, 5 mm', 'paper.blankSub': 'Weiss',
     'paper.portrait': 'Hochformat', 'paper.landscape': 'Querformat',
+    'paper.size': 'Grösse', 'paper.orient': 'Ausrichtung', 'paper.same': 'Wie Seite', 'paper.sameTitle': 'Gleiche Grösse wie die Seite davor',
   },
   {
-    'paper.blank': 'Blank', 'paper.lined': 'Lined', 'paper.grid': 'Grid', 'paper.dotted': 'Dotted',
+    'paper.blank': 'Blank page', 'paper.lined': 'Lined', 'paper.grid': 'Grid', 'paper.dotted': 'Dotted',
     'paper.linedSub': 'Ruled, 8 mm', 'paper.gridSub': 'Squares, 5 mm', 'paper.dottedSub': 'Dots, 5 mm', 'paper.blankSub': 'Plain',
     'paper.portrait': 'Portrait', 'paper.landscape': 'Landscape',
+    'paper.size': 'Size', 'paper.orient': 'Orientation', 'paper.same': 'Same', 'paper.sameTitle': 'Same size as the page before',
   },
 );
 
-export const PAPERS: BlankTemplate[] = ['lined', 'grid', 'dotted', 'blank'];
+export const PAPERS: BlankTemplate[] = ['blank', 'lined', 'grid', 'dotted'];
+
+/** Paper sizes in pt, portrait. */
+export const PAGE_SIZES: Record<Exclude<PageSize, 'same'>, [number, number]> = {
+  A3: [841.89, 1190.55],
+  A4: [595.28, 841.89],
+  A5: [419.53, 595.28],
+  A6: [297.64, 419.53],
+  letter: [612, 792],
+};
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -67,4 +80,48 @@ export function paperPicker(value: BlankTemplate, onChange: (v: BlankTemplate) =
   const card = (kind: BlankTemplate) => cards[PAPERS.indexOf(kind)];
   root.append(...cards);
   return root;
+}
+
+export interface PageChoice {
+  template: BlankTemplate;
+  size: PageSize;
+  orient: 'p' | 'l';
+}
+
+/**
+ * Paper, size and orientation of a new page. `ref` is the size of the neighbouring page
+ * (offers "same size"); without it the choice starts at A4.
+ */
+export function pageSetup(initial: PageChoice, ref?: { w: number; h: number }): { el: HTMLElement; value: () => PageChoice & { w: number; h: number } } {
+  const c = { ...initial };
+  if (c.size === 'same' && !ref) c.size = 'A4';
+  // "same size" starts in the orientation of that page
+  if (c.size === 'same' && ref) c.orient = ref.w > ref.h ? 'l' : 'p';
+  const picker = h('div');
+  const paint = () => picker.replaceChildren(paperPicker(c.template, (v) => (c.template = v), c.orient === 'l'));
+  paint();
+  const sizes: { value: PageSize; label: string; title?: string }[] = [
+    ...(ref ? [{ value: 'same' as const, label: t('paper.same'), title: t('paper.sameTitle') }] : []),
+    ...(['A3', 'A4', 'A5', 'A6'] as const).map((v) => ({ value: v, label: v })),
+    { value: 'letter', label: 'Letter' },
+  ];
+  const size = segmented(sizes, c.size, (v) => (c.size = v));
+  const orient = segmented(
+    [
+      { value: 'p' as const, label: t('paper.portrait') },
+      { value: 'l' as const, label: t('paper.landscape') },
+    ],
+    c.orient,
+    (v) => {
+      c.orient = v;
+      paint();
+    },
+  );
+  const el = h('div.page-setup', null, picker, h('div.page-setup-row', null, field(t('paper.size'), size), field(t('paper.orient'), orient)));
+  const value = () => {
+    let [w, hh] = c.size === 'same' ? [ref!.w, ref!.h] : PAGE_SIZES[c.size];
+    if ((c.orient === 'l') !== (w > hh)) [w, hh] = [hh, w];
+    return { ...c, w, h: hh };
+  };
+  return { el, value };
 }

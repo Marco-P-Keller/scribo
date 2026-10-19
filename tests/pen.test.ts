@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PressureFilter, roundEnd } from '../src/core/pressure';
-import { inkOutline } from '../src/core/ink';
+import { inkOutline, strokeOptions } from '../src/core/ink';
+import { decodeNotes, encodeNotes } from '../src/core/serialize';
 import { penTouching } from '../src/input/pen';
 import type { InkObj } from '../src/core/types';
 
@@ -62,5 +63,34 @@ describe('ink nib', () => {
     // a round cap reaches about one radius past the last sample; a taper ends at the sample
     expect(Math.max(...outline.map(([x]) => x))).toBeGreaterThan(81.5);
     expect(Math.min(...outline.map(([x]) => x))).toBeLessThan(-1.5);
+  });
+});
+
+describe('stroke smoothing', () => {
+  const wavy = Array.from({ length: 40 }, (_, i) => [i * 3, Math.sin(i * 1.7) * 4, 0.5]).flat();
+  const stroke = (sm?: number): InkObj => ({ id: 's', t: 'ink', c: '#000000', w: 2, p: wavy, ...(sm === undefined ? {} : { sm }) });
+  // how far the outline wanders from the straight middle line
+  const wobble = (o: InkObj) => Math.max(...inkOutline(o).map(([, y]) => Math.abs(y)));
+
+  it('keeps strokes without a smoothing value exactly as before', () => {
+    const old = strokeOptions({ w: 2 });
+    expect(old.smoothing).toBe(0.62);
+    expect(old.streamline).toBe(0.48);
+    expect(strokeOptions({ w: 2, sim: 1 }).streamline).toBe(0.55);
+    expect(strokeOptions({ w: 14, hl: 1 }).smoothing).toBe(0.6);
+  });
+
+  it('strong smoothing gives a calmer line than weak smoothing', () => {
+    expect(wobble(stroke(1))).toBeLessThan(wobble(stroke(0)));
+    for (const sm of [0, 1]) {
+      const o = strokeOptions({ w: 2, sm });
+      expect(o.streamline).toBeGreaterThan(0);
+      expect(o.streamline).toBeLessThan(1);
+    }
+  });
+
+  it('is saved with the stroke so the PDF matches the screen', () => {
+    const back = decodeNotes(encodeNotes([[stroke(0.85)]], [{ w: 595, h: 842 }]))!;
+    expect((back.pages['0'].objs[0] as InkObj).sm).toBe(0.85);
   });
 });

@@ -49,7 +49,7 @@ const actions = {
   async zoom() { await page.evaluate((z) => window.__scribo.viewer.setZoom(z), 0.5 + rnd() * 2.5); },
   async scroll() { await page.evaluate(([dx, dy]) => window.__scribo.viewer.panBy(dx, dy), [rnd() * 400 - 200, rnd() * 1600 - 800]); },
   async escape() { await page.keyboard.press('Escape'); },
-  async addPage() { await page.evaluate(() => window.__scribo.viewer.addPageButton.click()); await page.waitForTimeout(400); },
+  async addPage() { await page.evaluate(() => window.__scribo.viewer.addPageButton.click()); await page.waitForSelector('.page-setup'); await page.keyboard.press('Enter'); await page.waitForTimeout(400); },
   async rotatePage() { await page.evaluate(() => window.__scribo.applyPageOps('r', [{ op: 'rotate', pages: [window.__scribo.viewer.currentPage], delta: 90 }])); await page.waitForTimeout(400); },
   async mouseDraw() { const [x, y] = P(); await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 60, y + 30, { steps: 4 }); await page.mouse.up(); },
 };

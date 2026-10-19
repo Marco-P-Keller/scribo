@@ -5,13 +5,15 @@ import { boundsOfPoints } from './geometry';
 export type Outline = [number, number][];
 
 /** Pen / highlighter nibs are tuned here so on-screen ink and exported PDF ink are identical. */
-export function strokeOptions(o: Pick<InkObj, 'w' | 'hl' | 'sim'>): StrokeOptions {
+export function strokeOptions(o: Pick<InkObj, 'w' | 'hl' | 'sim' | 'sm'>): StrokeOptions {
+  // the stroke's smoothing shifts the original tuning (sm 0.5) towards "exact" or "calm"
+  const k = (o.sm ?? 0.5) - 0.5;
   if (o.hl) {
     return {
       size: o.w,
       thinning: 0,
-      smoothing: 0.6,
-      streamline: 0.55,
+      smoothing: 0.6 + 0.64 * k,
+      streamline: 0.55 + 0.76 * k,
       simulatePressure: false,
       start: { cap: true, taper: 0 },
       end: { cap: true, taper: 0 },
@@ -22,8 +24,8 @@ export function strokeOptions(o: Pick<InkObj, 'w' | 'hl' | 'sim'>): StrokeOption
   return {
     size: o.w,
     thinning: o.sim ? 0.4 : 0.6,
-    smoothing: 0.62,
-    streamline: o.sim ? 0.55 : 0.48,
+    smoothing: 0.62 + 0.64 * k,
+    streamline: (o.sim ? 0.55 : 0.48) + 0.76 * k,
     simulatePressure: !!o.sim,
     start: { cap: true, taper: 0 },
     end: { cap: true, taper: 0 },
