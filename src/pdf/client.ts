@@ -1,4 +1,4 @@
-import type { SaveRequest, StructureOp } from './build';
+import type { BlankTemplate, SaveRequest, StructureOp } from './build';
 import type { WorkerRequest, WorkerResponse } from './worker';
 
 export class PdfError extends Error {
@@ -45,4 +45,8 @@ export function buildPdf(req: SaveRequest): Promise<Uint8Array> {
 
 export function restructurePdf(bytes: Uint8Array, ops: StructureOp[]): Promise<Uint8Array> {
   return call('restructure', [bytes, ops]);
+}
+
+export function createBlankPdf(w: number, h: number, template: BlankTemplate, count = 1): Promise<Uint8Array> {
+  return call('create', [w, h, template, count]);
 }

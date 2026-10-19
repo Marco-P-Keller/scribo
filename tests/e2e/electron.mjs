@@ -80,6 +80,10 @@ await app.close();
 ({ app, page } = await launch());
 const again = await page.evaluate(() => window.__scribo.session.model.pages[0].map((o) => o.t + ':' + (o.k ?? '')));
 ok(again.length === 2 && again.some((k) => k.startsWith('ink')), `ink restored and editable after relaunch (${again.join(',')})`);
+// closing through the app (title bar ×, Ctrl+W) must not raise "Object has been destroyed" in the main process
+await page.evaluate(() => window.__scribo.close()).catch(() => undefined);
+await new Promise((r) => setTimeout(r, 1500));
+ok(!/Object has been destroyed|Uncaught Exception|A JavaScript error occurred/i.test(app.log()), 'window closes without a main-process error');
 await app.close();
 log(process.exitCode ? 'FAILED' : 'all checks passed');
 process.exit(process.exitCode ?? 0);

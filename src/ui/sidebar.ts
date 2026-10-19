@@ -293,7 +293,7 @@ export class Sidebar {
         icon: 'newPage',
         onClick: () => {
           const m = this.session!.metas[pages[pages.length - 1]];
-          void this.app.applyPageOps(t('pg.insert'), [{ op: 'insertBlank', at: pages[pages.length - 1] + 1, w: m.w, h: m.h, template: 'blank' }]);
+          void this.app.applyPageOps(t('pg.insert'), [{ op: 'insertBlank', at: pages[pages.length - 1] + 1, w: m.w, h: m.h, template: settings.get('paper') }]);
         },
       },
       { separator: true },

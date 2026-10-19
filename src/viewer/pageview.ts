@@ -41,9 +41,13 @@ export class Layer {
     st.height = `${region.h * factor}px`;
   }
 
+  /** Clears the bitmap but keeps the current transform (callers set it up before clearing). */
   clear(): void {
-    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.restore();
   }
 
   release(): void {

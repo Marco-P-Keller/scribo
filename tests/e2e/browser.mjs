@@ -48,19 +48,66 @@ const objs = () => page.evaluate(() => window.__scribo.session.model.pages[0].ma
 const setting = (k, v) => page.evaluate(([k, v]) => window.__scribo.settings.set(k, v), [k, v]);
 
 // ── pen, buttons, undo ──────────────────────────────────────────────────────
-await pen.stroke(wave(300, 330, 300));
+// the stroke must be visible under the pen while it is drawn, not only after lifting
+{
+  const pts = wave(300, 330, 300);
+  await pen.hover(pts[0][0], pts[0][1]);
+  await pen.send('mousePressed', pts[0][0], pts[0][1], { force: pts[0][2], buttons: 1, button: 'left' });
+  for (const [x, y, p] of pts.slice(1, 30)) await pen.send('mouseMoved', x, y, { force: p, buttons: 1, button: 'left' });
+  await page.waitForTimeout(80);
+  const live = await page.evaluate(([x, y]) => {
+    const v = window.__scribo.viewer.realized[0];
+    const c = v.el.querySelector('canvas.live');
+    if (!c) return 0;
+    // ink pixels within 6 css px of the pen position
+    const r = c.getBoundingClientRect();
+    const k = c.width / r.width;
+    const d = c.getContext('2d').getImageData(Math.round((x - r.left - 6) * k), Math.round((y - r.top - 6) * k), Math.round(12 * k), Math.round(12 * k)).data;
+    let n = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 100) n++;
+    return n;
+  }, pts[29]);
+  ok(live > 10, `the stroke is drawn live under the pen (${live} px)`);
+  for (const [x, y, p] of pts.slice(30)) await pen.send('mouseMoved', x, y, { force: p, buttons: 1, button: 'left' });
+  await pen.send('mouseReleased', pts.at(-1)[0], pts.at(-1)[1], { force: 0, buttons: 0, button: 'left' });
+}
 ok((await objs()).join() === 'ink:', 'pen stroke is stored');
-await pen.stroke([[420, 280, 0.5], [420, 330, 0.5], [420, 380, 0.5]], { extraButtons: 2 });
-ok((await objs()).length === 0, 'pen button 1 (barrel) erases the stroke it crosses');
+// eraser button (code 32, without the tip bit); CDP can't send it, so use synthetic pointer events
+const synth = (kind, x, y, buttons, pressure, button = -1) => page.evaluate(([kind, x, y, buttons, pressure, button]) => {
+  window.__scribo.viewer.stage.dispatchEvent(new PointerEvent(kind, { bubbles: true, cancelable: true, pointerId: 77, pointerType: 'pen', clientX: x, clientY: y, buttons, pressure, button }));
+}, [kind, x, y, buttons, pressure, button]);
+await synth('pointerdown', 420, 280, 32, 0.5, 5);
+for (const y of [300, 330, 360, 380]) await synth('pointermove', 420, y, 32, 0.5);
+await synth('pointerup', 420, 380, 0, 0, 5);
+ok((await objs()).length === 0, 'the eraser button (code 32) erases the stroke it crosses');
 await page.keyboard.press('Control+z');
 ok((await objs()).length === 1, 'undo brings the erased stroke back');
-await page.evaluate(() => window.__scribo.settings.patch('penButtons', { middle: 'lasso' }));
-await pen.stroke([[260, 270, 0.5], [640, 270, 0.5], [640, 400, 0.5], [260, 400, 0.5], [262, 272, 0.5]], { extraButtons: 4 });
-ok(await page.evaluate(() => window.__scribo.editor.selection.ids.length === 1), 'pen button mapped to lasso selects the stroke');
+// eraser button held in the air: the contact arrives as a move without a pointerdown
+await synth('pointermove', 420, 270, 32, 0);
+for (const y of [280, 300, 330, 360, 380]) await synth('pointermove', 420, y, 32, 0.5);
+await synth('pointermove', 420, 390, 32, 0);
+await synth('pointerleave', 420, 390, 0, 0);
+ok((await objs()).length === 0, 'eraser contact without pointerdown erases too');
+await page.keyboard.press('Control+z');
+// side button (code 2) = lasso; Windows reports the tip contact as the second button only
+const loop = [[260, 270], [640, 270], [640, 400], [260, 400], [262, 272]];
+await pen.hover(260, 270, 2);
+await pen.send('mousePressed', 260, 270, { force: 0.5, buttons: 2, button: 'right' });
+for (const [x, y] of loop.slice(1)) for (let k = 0; k < 3; k++) await pen.send('mouseMoved', x, y, { force: 0.5, buttons: 2, button: 'right' });
+await pen.send('mouseReleased', 262, 272, { force: 0, buttons: 0, button: 'right' });
+ok(await page.evaluate(() => window.__scribo.editor.selection.ids.length === 1), 'side button lassos the stroke');
+// the plain tip moves the lasso selection although the pen tool is active
+{
+  const p0 = await page.evaluate(() => window.__scribo.session.model.pages[0][0].p.slice(0, 2));
+  await pen.stroke([[450, 330, 0.5], [470, 350, 0.5], [490, 370, 0.5]]);
+  const p1 = await page.evaluate(() => window.__scribo.session.model.pages[0][0].p.slice(0, 2));
+  ok((await objs()).length === 1 && Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) > 20, 'the pen tip drags the selection instead of writing');
+  await page.keyboard.press('Control+z');
+}
 await page.keyboard.press('Delete');
 ok((await objs()).length === 0, 'Delete removes the selection');
 await page.keyboard.press('Control+z');
-
+await page.keyboard.press('Escape');
 // ── shape recognition ───────────────────────────────────────────────────────
 await setting('snap', 'auto');
 await pen.stroke(circle(900, 420, 70));
@@ -107,6 +154,16 @@ await page.mouse.up();
 const r1 = await rect();
 ok(Math.hypot(r1[0] - r0[0], r1[1] - r0[1]) > 20, 'dragging moves the selected shape');
 await page.keyboard.press('Control+z');
+// with the pen over PDF text, the select tool moves the object instead of selecting text
+{
+  const at = await page.evaluate(() => { const o = window.__scribo.session.model.pages[0].find((o) => o.t === 'ink'); return window.__scribo.viewer.realized[0].pageToClient(o.p[30], o.p[31]); });
+  const i0 = await page.evaluate(() => window.__scribo.session.model.pages[0].find((o) => o.t === 'ink').p.slice(0, 2));
+  await pen.stroke([[at.x, at.y, 0.5], [at.x + 20, at.y + 15, 0.5], [at.x + 40, at.y + 30, 0.5]]);
+  const i1 = await page.evaluate(() => window.__scribo.session.model.pages[0].find((o) => o.t === 'ink').p.slice(0, 2));
+  const text = await page.evaluate(() => String(window.getSelection()));
+  ok(Math.hypot(i1[0] - i0[0], i1[1] - i0[1]) > 15 && !text, 'pen drag in the select tool moves the stroke, no text selection');
+}
+await page.keyboard.press('Control+z');
 const r2 = await rect();
 ok(Math.hypot(r2[0] - r0[0], r2[1] - r0[1]) < 0.01, 'undo restores the position');
 await page.keyboard.press('Escape');
@@ -133,6 +190,11 @@ await page.evaluate(() => window.__scribo.applyPageOps('x', [{ op: 'insertBlank'
 ok((await page.evaluate(() => window.__scribo.session.pageCount)) === 5, 'blank page inserted');
 await page.evaluate(() => window.__scribo.session.model.undo());
 ok((await page.evaluate(() => window.__scribo.session.pageCount)) === 4, 'page insertion can be undone');
+await page.evaluate(() => window.__scribo.settings.set('paper', 'grid'));
+await page.evaluate(() => window.__scribo.viewer.addPageButton.click());
+await page.waitForFunction(() => window.__scribo.session.pageCount === 5, null, { timeout: 8000 }).catch(() => undefined);
+ok((await page.evaluate(() => window.__scribo.session.pageCount)) === 5, '"add page" appends a page');
+await page.evaluate(() => window.__scribo.session.model.undo());
 ok((await objs()).length >= 6, 'annotations survive page operations');
 
 // ── touch ───────────────────────────────────────────────────────────────────
@@ -212,6 +274,16 @@ await page.evaluate(() => window.__scribo.viewer.setZoom(1));
     ok(r.hidden === null, `baked layer is hidden for Scribo on page ${r.page + 1}`);
   }
 }
+
+// ── new notebook ────────────────────────────────────────────────────────────
+page.once('dialog', (d) => d.accept());
+await page.evaluate(() => window.__scribo.newNotebook());
+await page.waitForSelector('.paper-picker');
+await page.locator('.paper-card').nth(1).click();
+await page.locator('.sheet .btn.primary').click();
+await page.waitForFunction(() => window.__scribo.session?.file.untitled, null, { timeout: 10000 }).catch(() => undefined);
+ok(await page.evaluate(() => window.__scribo.session.pageCount === 1 && window.__scribo.session.file.untitled === true), 'a new notebook opens with one page');
+ok(await page.evaluate(() => window.__scribo.settings.get('paper') === 'grid'), 'the chosen paper is remembered');
 
 // ── save roundtrip ──────────────────────────────────────────────────────────
 await openDoc(page, fixture());

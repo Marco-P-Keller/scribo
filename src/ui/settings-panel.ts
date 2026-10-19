@@ -2,7 +2,9 @@ import { getStroke } from 'perfect-freehand';
 import type { AppApi } from '../app/api';
 import { settings } from '../app/settings';
 import type { PenAction } from '../app/settings';
-import { pressureCurve, outlinePath } from '../core/ink';
+import { pressureCurve, outlinePath, strokeOptions } from '../core/ink';
+import { PressureFilter, roundEnd } from '../core/pressure';
+import { penTouching } from '../input/pen';
 import type { SnapMode } from '../core/types';
 import { h } from './dom';
 import { field, segmented, slider, toggle } from './popover';
@@ -16,10 +18,12 @@ addStrings(
     'set.input': 'Stift & Eingabe', 'set.finger': 'Mit dem Finger zeichnen', 'set.fingerHint': 'Aus: Finger scrollen und zoomen, nur der Stift schreibt.',
     'set.mouse': 'Mit der Maus zeichnen', 'set.palm': 'Handballen-Erkennung', 'set.palmHint': 'Berührungen werden ignoriert, solange der Stift am Bildschirm ist.',
     'set.pressure': 'Druckempfindlichkeit', 'set.pressureHint': 'Links: fester drücken für dicke Linien. Rechts: schon leichter Druck reicht.',
+    'set.pressureAmount': 'Einfluss des Drucks auf die Strichbreite', 'set.pressureAmountHint': 'Links: gleichmäßige Linie wie mit einem Fineliner. Rechts: kräftiger Schwung wie mit einer Füllfeder.',
     'set.snap': 'Formerkennung', 'set.lowLatency': 'Geringere Schreib-Verzögerung', 'set.lowLatencyHint': 'Experimentell. Bei Flackern oder fehlender Tinte ausschalten.',
-    'set.buttons': 'Stifttasten', 'set.btn1': 'Taste 1 (Seitentaste, Code 2)', 'set.btn2': 'Taste 2 / Radierer-Ende (Code 32)', 'set.btn3': 'Mitteltaste (Code 4)',
+    'set.buttons': 'Stifttasten', 'set.btn1': 'Seitentaste (Code 2)', 'set.btn2': 'Radiertaste / Radierer-Ende (Code 32)', 'set.btn3': 'Weitere Taste (Code 4)',
+    'set.buttonsHint': 'Halte den Stift über das Testfeld und drücke eine Taste: Die passende Zeile leuchtet auf.',
     'set.act.erase': 'Linie radieren', 'set.act.lasso': 'Lasso', 'set.act.select': 'Auswahl', 'set.act.none': 'Keine Aktion', 'set.swap': 'Tasten tauschen',
-    'set.test': 'Stift testen', 'set.testHint': 'Schreibe hier und drücke die Stifttasten. So siehst du, welche Taste welchen Code sendet.',
+    'set.test': 'Stift testen', 'set.testHint': 'Schreibe hier mit deinen aktuellen Einstellungen und probiere die Tasten aus.',
     'set.testIdle': 'Stift über das Feld halten …', 'set.pressureLabel': 'Druck', 'set.pressed': 'Gedrückt', 'set.none': 'keine Taste',
     'set.save': 'Speichern', 'set.autosave': 'Automatisch speichern', 'set.autosaveHint': 'Speichert 10 Sekunden nach der letzten Änderung in dieselbe Datei.',
     'set.about': 'Über Scribo', 'set.version': 'Version {v}', 'set.privacy': 'Läuft vollständig offline. Es werden keine Daten gesendet.',
@@ -36,10 +40,12 @@ addStrings(
     'set.input': 'Pen & input', 'set.finger': 'Draw with finger', 'set.fingerHint': 'Off: fingers scroll and zoom, only the pen writes.',
     'set.mouse': 'Draw with mouse', 'set.palm': 'Palm rejection', 'set.palmHint': 'Touches are ignored while the pen is near the screen.',
     'set.pressure': 'Pressure sensitivity', 'set.pressureHint': 'Left: press harder for thick lines. Right: light pressure is enough.',
+    'set.pressureAmount': 'How much pressure changes the line width', 'set.pressureAmountHint': 'Left: even line like a fineliner. Right: lively swell like a fountain pen.',
     'set.snap': 'Shape recognition', 'set.lowLatency': 'Lower writing latency', 'set.lowLatencyHint': 'Experimental. Turn off if you see flicker or missing ink.',
-    'set.buttons': 'Pen buttons', 'set.btn1': 'Button 1 (side button, code 2)', 'set.btn2': 'Button 2 / eraser end (code 32)', 'set.btn3': 'Middle button (code 4)',
+    'set.buttons': 'Pen buttons', 'set.btn1': 'Side button (code 2)', 'set.btn2': 'Eraser button / eraser end (code 32)', 'set.btn3': 'Other button (code 4)',
+    'set.buttonsHint': 'Hold the pen over the test field and press a button: the matching row lights up.',
     'set.act.erase': 'Erase stroke', 'set.act.lasso': 'Lasso', 'set.act.select': 'Select', 'set.act.none': 'No action', 'set.swap': 'Swap buttons',
-    'set.test': 'Test your pen', 'set.testHint': 'Write here and press the pen buttons to see which button sends which code.',
+    'set.test': 'Test your pen', 'set.testHint': 'Write here with your current settings and try the buttons.',
     'set.testIdle': 'Hold the pen over the field …', 'set.pressureLabel': 'Pressure', 'set.pressed': 'Pressed', 'set.none': 'no button',
     'set.save': 'Saving', 'set.autosave': 'Save automatically', 'set.autosaveHint': 'Saves into the same file 10 seconds after the last change.',
     'set.about': 'About Scribo', 'set.version': 'Version {v}', 'set.privacy': 'Runs fully offline. No data is sent anywhere.',
@@ -64,12 +70,18 @@ function actionSelect(value: PenAction, onChange: (v: PenAction) => void): HTMLE
   return sel;
 }
 
-/** A scribble pad that shows live pen data: pressure and which button codes arrive. */
-function penTestPad(app: AppApi): { el: HTMLElement; dispose: () => void } {
-  const canvas = h('canvas.pad', { width: 960, height: 220 });
+/**
+ * A scribble pad with the real ink pipeline (pressure curve, pressure filter, nib) that also
+ * shows live pen data: pressure and which button codes arrive.
+ */
+function penTestPad(onButtons: (bits: number) => void): { el: HTMLElement; dispose: () => void } {
+  const canvas = h('canvas.pad');
   const info = h('div.pad-info', null, t('set.testIdle'));
   const ctx = canvas.getContext('2d')!;
-  let pts: number[][] = [];
+  const strokes: number[][][] = [];
+  let cur: number[][] | null = null;
+  let filter = new PressureFilter(1);
+  let fade = 0;
   const names = (b: number) => {
     const out: string[] = [];
     if (b & 2) out.push(`${t('btn.contact')} (2)`);
@@ -78,44 +90,96 @@ function penTestPad(app: AppApi): { el: HTMLElement; dispose: () => void } {
     return out.length ? out.join(' + ') : t('set.none');
   };
   const draw = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (pts.length < 2) return;
-    const outline = getStroke(pts, { size: 7, thinning: 0.62, smoothing: 0.55, streamline: 0.4, simulatePressure: false, last: true });
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.round(canvas.clientWidth * dpr);
+    const hh = Math.round(canvas.clientHeight * dpr);
+    if (canvas.width !== w || canvas.height !== hh) {
+      canvas.width = w;
+      canvas.height = hh;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w, hh);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = getComputedStyle(canvas).color;
-    ctx.fill(outlinePath(outline as [number, number][]));
+    for (const pts of strokes) {
+      if (!pts.length) continue;
+      const flat = roundEnd(pts.flat());
+      const tri: number[][] = [];
+      for (let i = 0; i < flat.length; i += 3) tri.push([flat[i], flat[i + 1], flat[i + 2]]);
+      if (tri.length === 1) tri.push([tri[0][0] + 0.01, tri[0][1], tri[0][2]]);
+      ctx.fill(outlinePath(getStroke(tri, strokeOptions({ w: 3.2 })) as [number, number][]));
+    }
   };
   const pos = (e: PointerEvent) => {
     const r = canvas.getBoundingClientRect();
-    return [((e.clientX - r.left) / r.width) * canvas.width, ((e.clientY - r.top) / r.height) * canvas.height];
+    return [e.clientX - r.left, e.clientY - r.top];
+  };
+  const add = (ev: PointerEvent) => {
+    const raw = ev.pointerType === 'pen' ? pressureCurve(ev.pressure, settings.get('sensitivity')) : 0.5;
+    cur!.push([...pos(ev), ev.pointerType === 'pen' ? filter.next(raw) : 0.5]);
+  };
+  const begin = (e: PointerEvent) => {
+    clearTimeout(fade);
+    filter = new PressureFilter(settings.get('pressureAmount'));
+    cur = [];
+    strokes.push(cur);
+    add(e);
+    draw();
+  };
+  const end = () => {
+    cur = null;
+    clearTimeout(fade);
+    fade = window.setTimeout(() => {
+      strokes.length = 0;
+      draw();
+    }, 2500);
   };
   canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
-    pts = [[...pos(e), pressureCurve(e.pressure, settings.get('sensitivity'))]];
+    onButtons(e.buttons & ~1);
+    if (e.pointerType !== 'pen' || penTouching(e)) begin(e);
     e.preventDefault();
   });
   canvas.addEventListener('pointermove', (e) => {
-    info.textContent = `${e.pointerType === 'pen' ? '✎' : e.pointerType} · ${t('set.pressureLabel')} ${Math.round(e.pressure * 100)} % · ${t('set.pressed')}: ${names(e.buttons)}`;
-    if (e.buttons & 1) {
-      for (const ev of e.getCoalescedEvents?.() ?? [e]) pts.push([...pos(ev), pressureCurve(ev.pressure, settings.get('sensitivity'))]);
+    info.textContent = `${e.pointerType === 'pen' ? '✎' : e.pointerType} · ${t('set.pressureLabel')} ${Math.round(e.pressure * 100)} % · ${t('set.pressed')}: ${names(e.buttons & ~1)}`;
+    onButtons(e.pointerType === 'pen' ? e.buttons & ~1 : 0);
+    const touching = e.pointerType === 'pen' ? penTouching(e) : (e.buttons & 1) !== 0;
+    if (touching && !cur) begin(e);
+    else if (!touching && cur) end();
+    else if (cur) {
+      for (const ev of e.getCoalescedEvents?.() ?? [e]) add(ev);
       draw();
     }
   });
-  canvas.addEventListener('pointerup', () => setTimeout(() => { pts = []; draw(); }, 1200));
+  canvas.addEventListener('pointerup', (e) => {
+    onButtons(e.buttons & ~1);
+    if (cur) end();
+  });
+  canvas.addEventListener('pointerleave', () => onButtons(0));
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-  const off = app.editor.on('penInfo', () => undefined);
-  return { el: h('div.pad-wrap', null, canvas, info), dispose: off };
+  return { el: h('div.pad-wrap', null, canvas, info), dispose: () => clearTimeout(fade) };
 }
 
 export async function showSettings(app: AppApi): Promise<void> {
   const s = settings;
-  const pad = penTestPad(app);
   const buttons = h('div.btn-map');
+  const rows: [number, HTMLElement][] = [];
+  const pad = penTestPad((bits) => {
+    for (const [code, el] of rows) el.classList.toggle('pressed', (bits & code) !== 0);
+  });
+  const buttonRow = (code: number, label: string, el: HTMLElement) => {
+    const r = row(label, el);
+    r.prepend(h('span.btn-led'));
+    rows.push([code, r]);
+    return r;
+  };
   const paintButtons = () => {
     const m = s.get('penButtons');
+    rows.length = 0;
     buttons.replaceChildren(
-      row(t('set.btn1'), actionSelect(m.barrel, (v) => { s.patch('penButtons', { barrel: v }); })),
-      row(t('set.btn2'), actionSelect(m.eraser, (v) => { s.patch('penButtons', { eraser: v }); })),
-      row(t('set.btn3'), actionSelect(m.middle, (v) => { s.patch('penButtons', { middle: v }); })),
+      buttonRow(32, t('set.btn2'), actionSelect(m.eraser, (v) => { s.patch('penButtons', { eraser: v }); })),
+      buttonRow(2, t('set.btn1'), actionSelect(m.barrel, (v) => { s.patch('penButtons', { barrel: v }); })),
+      buttonRow(4, t('set.btn3'), actionSelect(m.middle, (v) => { s.patch('penButtons', { middle: v }); })),
       h('button.btn.small', {
         onclick: () => {
           const mm = s.get('penButtons');
@@ -159,6 +223,7 @@ export async function showSettings(app: AppApi): Promise<void> {
       row(t('set.finger'), toggle(s.get('fingerDraws'), (v) => s.set('fingerDraws', v)), t('set.fingerHint')),
       row(t('set.mouse'), toggle(s.get('mouseDraws'), (v) => s.set('mouseDraws', v))),
       row(t('set.palm'), toggle(s.get('palmRejection'), (v) => s.set('palmRejection', v)), t('set.palmHint')),
+      field(t('set.pressureAmount'), slider({ min: 0, max: 1, step: 0.05, value: s.get('pressureAmount'), format: (v) => `${Math.round(v * 100)} %`, onInput: (v) => s.set('pressureAmount', v) }), t('set.pressureAmountHint')),
       field(t('set.pressure'), slider({ min: 0, max: 1, step: 0.05, value: s.get('sensitivity'), format: (v) => `${Math.round(v * 100)} %`, onInput: (v) => s.set('sensitivity', v) }), t('set.pressureHint')),
       field(t('set.snap'), segmented(
         [
@@ -171,7 +236,7 @@ export async function showSettings(app: AppApi): Promise<void> {
       ), t('snap.hint')),
       row(t('set.lowLatency'), toggle(s.get('lowLatency'), (v) => s.set('lowLatency', v)), t('set.lowLatencyHint')),
     ),
-    h('section', null, h('h3', null, t('set.buttons')), buttons, h('div.set-sub', null, t('set.test')), h('div.set-hint', null, t('set.testHint')), pad.el),
+    h('section', null, h('h3', null, t('set.buttons')), h('div.set-hint', null, t('set.buttonsHint')), buttons, h('div.set-sub', null, t('set.test')), h('div.set-hint', null, t('set.testHint')), pad.el),
     h('section', null,
       h('h3', null, t('set.save')),
       row(t('set.autosave'), toggle(s.get('autosave'), (v) => s.set('autosave', v)), t('set.autosaveHint')),

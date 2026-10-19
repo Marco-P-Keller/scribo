@@ -18,15 +18,15 @@ export function strokeOptions(o: Pick<InkObj, 'w' | 'hl' | 'sim'>): StrokeOption
       last: true,
     };
   }
-  const taper = Math.min(o.w * 2.2, 5);
+  // round caps at both ends: a fountain-pen feel instead of needle tips
   return {
     size: o.w,
-    thinning: o.sim ? 0.45 : 0.62,
-    smoothing: 0.55,
-    streamline: o.sim ? 0.55 : 0.4,
+    thinning: o.sim ? 0.4 : 0.6,
+    smoothing: 0.62,
+    streamline: o.sim ? 0.55 : 0.48,
     simulatePressure: !!o.sim,
     start: { cap: true, taper: 0 },
-    end: { cap: true, taper },
+    end: { cap: true, taper: 0 },
     last: true,
   };
 }

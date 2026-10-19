@@ -1,19 +1,24 @@
-## Scribo 1.0 – PDFs beschriften wie auf Papier
+## Scribo 1.1 – besseres Stiftgefühl, Notizbücher
 
-Der PDF-Editor für handschriftliche Notizen im Studium, gemacht für Windows 11 und Stift.
+**Behoben**
+- Die Tinte erscheint jetzt live unter der Stiftspitze, nicht erst nach dem Absetzen
+- Lasso, Auswahlrahmen und Formen werden beim Zeichnen nicht mehr nach oben links verschoben angezeigt
+- Die Radiertaste am Stift funktioniert (Kontakt mit gedrückter Taste wurde nicht erkannt)
+- Anmerkungen lassen sich mit dem Stift auswählen, verschieben, skalieren und drehen, ohne dass stattdessen PDF-Text markiert wird
+- Kein Fehler „Object has been destroyed“ mehr beim Schließen des Fensters
 
-**Highlights**
-- Druckempfindliche Tinte, Stift und Textmarker als Favoriten-Leiste
-- Automatische Formerkennung (Kreis, Ellipse, Rechteck, Dreieck, Linie) – per Halten oder sofort
-- Stifttasten: Taste 1 radiert Linien, Taste 2 öffnet das Lasso (frei belegbar, mit Live-Test)
-- Lasso: auswählen, kopieren, verschieben, skalieren, drehen
-- Formen, Text, Haftnotizen, Bilder, Textmarker auf PDF-Text, Seitenverwaltung, Suche
-- **Strg+S speichert direkt in dieselbe PDF**, sichtbar in jedem Programm und in Scribo weiter bearbeitbar
+**Neu**
+- Runde Strichanfänge und -enden, leichte Glättung
+- Regler „Einfluss des Drucks auf die Strichbreite“ (von Fineliner bis Füllfeder), Standard etwas ruhiger als bisher
+- Stifttasten: Taste 1 (Radiertaste) radiert, Taste 2 (Seitentaste) öffnet das Lasso; im Einstellungs-Test leuchtet die gedrückte Taste auf
+- Eine per Stifttaste gezogene Auswahl lässt sich direkt mit der Stiftspitze verschieben und transformieren
+- **Neues Notizbuch** mit Notizpapier (liniert), Häuschenpapier (5 mm), Punktraster oder leer, hoch oder quer
+- Papierwahl mit Vorschau beim Einfügen von Seiten, „Seite hinzufügen“ unter der letzten Seite
 
-**Installation:** `Scribo-Setup-x64.exe` (Intel/AMD) oder `Scribo-Setup-arm64.exe` (ARM) ausführen. Ohne Installation: `Scribo-Portable-x64.exe`.
+**Installation:** `Scribo-Setup-x64.exe` (Intel/AMD) oder `Scribo-Setup-arm64.exe` (ARM) ausführen. Ohne Installation: `Scribo-Portable-x64.exe`. Installierte Version 1.0 aktualisiert sich automatisch.
 
 > Windows SmartScreen: Scribo ist noch nicht code-signiert. Bei „Der Computer wurde durch Windows geschützt“ → **Weitere Informationen → Trotzdem ausführen**.
 
 ---
 
-**English:** Scribo is a PDF editor for handwritten study notes on Windows 11 with a pen – pressure-sensitive ink, shape recognition, pen-button erase/lasso, and `Ctrl+S` saving straight into the same PDF. Run the installer for your CPU (`x64` or `arm64`), or use the portable build. Windows may show a SmartScreen warning because the app is not code-signed yet: *More info → Run anyway*.
+**English:** Scribo 1.1 draws ink live under the pen, fixes the pen eraser button, offset lasso/selection drawing, moving annotations with the pen and an error on closing. New: round stroke ends with light smoothing, a pressure-strength slider, new notebooks on lined, 5 mm grid or dotted paper, a paper picker for blank pages and an "Add page" button. Windows may show a SmartScreen warning because the app is not code-signed yet: *More info → Run anyway*.

@@ -5,6 +5,7 @@ import type { PenAction } from '../app/settings';
 import type { PageView } from '../viewer/pageview';
 import type { Viewer } from '../viewer/viewer';
 import type { Sample, Tool, ToolEvent } from './types';
+import { penTouching } from './pen';
 
 export interface ControllerDeps {
   viewer: Viewer;
@@ -14,6 +15,8 @@ export interface ControllerDeps {
   /** tools that draw / edit (as opposed to the pointer, which scrolls with a finger) */
   isDrawing(tool: Tool): boolean;
   isSpaceHeld(): boolean;
+  /** a tool that takes precedence at this point (e.g. moving the current selection with the pen tip) */
+  overrideAt?(page: PageView, clientX: number, clientY: number, pointerType: ToolEvent['pointerType']): Tool | null;
   /** live pen state for the settings panel (pressure meter, button tester) */
   onPenInfo?(info: { type: string; pressure: number; buttons: number; tiltX: number; tiltY: number } | null): void;
 }
@@ -46,7 +49,7 @@ interface Active {
   page: PageView | null;
   type: ToolEvent['pointerType'];
   convert: ((x: number, y: number) => { x: number; y: number }) | null;
-  /** a pen stroke that started with tip contact: it ends when the tip lifts, even if a barrel button is still held */
+  /** a pen stroke: it ends when the pen lifts, even if a button is still held (no pointerup arrives then) */
   viaContact: boolean;
 }
 
@@ -94,6 +97,10 @@ export class InputController {
     s.addEventListener('pointercancel', this.onCancel);
     s.addEventListener('pointerleave', this.onLeave);
     s.addEventListener('contextmenu', (e) => e.preventDefault());
+    // a pen drag on PDF text must move / draw, not start a native text selection
+    s.addEventListener('selectstart', (e) => {
+      if (this.active) e.preventDefault();
+    });
     s.addEventListener('dblclick', this.onDbl);
     s.addEventListener('wheel', this.onWheel, { passive: false });
   }
@@ -148,11 +155,16 @@ export class InputController {
     };
   }
 
+  /** Pen buttons held right now (bit 1 = tip excluded), including ones only reported as the changed button. */
+  private penButtonBits(e: PointerEvent): number {
+    return ((e.buttons | this.penHoverButtons) & ~1) | (e.button === 2 ? 2 : 0) | (e.button === 5 ? 32 : 0);
+  }
+
   private pickTool(e: PointerEvent): Tool {
     if (this.d.isSpaceHeld()) return this.panTool;
     const base = this.d.getTool();
     if (e.pointerType === 'pen') {
-      const bits = e.buttons | this.penHoverButtons | (e.button === 2 ? 2 : 0) | (e.button === 5 ? 32 : 0);
+      const bits = this.penButtonBits(e);
       const m = settings.get('penButtons');
       let act: PenAction = 'none';
       if (bits & 32) act = m.eraser;
@@ -163,6 +175,11 @@ export class InputController {
         if (t) return t;
       }
     }
+    if (e.pointerType !== 'touch' && this.d.overrideAt) {
+      const page = this.d.viewer.pageAtClient(e.clientX, e.clientY, 18);
+      const t = page ? this.d.overrideAt(page, e.clientX, e.clientY, this.kind(e)) : null;
+      if (t) return t;
+    }
     if (e.pointerType === 'mouse' && !settings.get('mouseDraws') && this.d.isDrawing(base)) return this.panTool;
     return base;
   }
@@ -171,9 +188,20 @@ export class InputController {
     return settings.get('palmRejection') && (this.penInContact || performance.now() - this.lastPen < PEN_MEMORY_MS);
   }
 
+  /** Capture can fail for pointers the browser doesn't consider pressed (e.g. contact reported as a move). */
+  private capture(id: number): void {
+    try {
+      this.stage.setPointerCapture(id);
+    } catch {
+      /* strokes still work without capture while the pen stays over the stage */
+    }
+  }
+
   // ── pointer events ────────────────────────────────────────────────────
 
   private onDown = (e: PointerEvent): void => {
+    // buttons inside the document area (e.g. "add page") are ordinary UI
+    if ((e.target as Element | null)?.closest?.('.viewer-ui')) return;
     const type = this.kind(e);
     if (type === 'pen') {
       this.lastPen = performance.now();
@@ -189,13 +217,12 @@ export class InputController {
       if (e.button !== 0) return;
     }
     if (type === 'pen') {
-      this.penInContact = true;
-      const contact = (e.buttons & 1) !== 0 || e.pressure > 0;
-      if (!contact) {
-        // barrel button pressed in the air: remember it for the stroke that follows
-        this.penHoverButtons = e.buttons & ~1;
+      if (!penTouching(e)) {
+        // button pressed in the air: remember it for the stroke that follows
+        this.penHoverButtons = this.penButtonBits(e);
         return;
       }
+      this.penInContact = true;
     }
     this.cancelInertia();
     this.start(e, this.pickTool(e));
@@ -212,10 +239,11 @@ export class InputController {
       this.updateCursor(tool);
       return;
     }
-    this.stage.setPointerCapture(e.pointerId);
-    this.active = { id: e.pointerId, tool, page, type, convert, viaContact: type === 'pen' && (e.buttons & 1) !== 0 };
+    this.capture(e.pointerId);
+    this.active = { id: e.pointerId, tool, page, type, convert, viaContact: type === 'pen' };
     if (type === 'pen') this.penInContact = true;
     e.preventDefault();
+    window.getSelection()?.removeAllRanges();
     this.hideRing();
     this.stage.style.cursor = tool.cursor;
   }
@@ -229,8 +257,8 @@ export class InputController {
     if (type === 'touch') return this.touchMove(e);
     const a = this.active;
     if (a && a.id === e.pointerId) {
-      if (a.viaContact && (e.buttons & 1) === 0) {
-        // tip lifted while the barrel button is still held: browsers report that as a move, not as pointerup
+      if (a.viaContact && !penTouching(e)) {
+        // pen lifted while a button is still held: browsers report that as a move, not as pointerup
         this.finish(e);
         this.penHoverButtons = e.buttons & ~1;
         return;
@@ -239,9 +267,9 @@ export class InputController {
       return;
     }
     if (type === 'pen') {
-      if ((e.buttons & 1) !== 0 && !a) {
-        // the tip touched down while the barrel button was already held: no pointerdown arrived
-        this.penHoverButtons = e.buttons & ~1;
+      if (penTouching(e) && !a) {
+        // the pen touched down while a button was already held: no pointerdown arrived
+        this.penHoverButtons = this.penButtonBits(e);
         this.penInContact = true;
         this.cancelInertia();
         this.start(e, this.pickTool(e));
@@ -266,8 +294,13 @@ export class InputController {
   }
 
   private pickToolForHover(e: PointerEvent): Tool {
-    // show the ring of the tool a press would use (barrel button held → eraser ring)
+    // show the ring / cursor of the tool a press would use (button held → eraser ring, over the selection → move)
     if (e.pointerType === 'pen' && this.penHoverButtons) return this.pickTool(e);
+    if (e.pointerType !== 'touch' && this.d.overrideAt) {
+      const page = this.d.viewer.pageAtClient(e.clientX, e.clientY, 18);
+      const t = page ? this.d.overrideAt(page, e.clientX, e.clientY, this.kind(e)) : null;
+      if (t) return t;
+    }
     return this.d.getTool();
   }
 
@@ -348,7 +381,7 @@ export class InputController {
       const page = this.d.viewer.pageAtClient(e.clientX, e.clientY, 18);
       const convert = page ? page.converter() : null;
       if (tool.down(this.makeEvent(e, page, convert))) {
-        this.stage.setPointerCapture(e.pointerId);
+        this.capture(e.pointerId);
         this.active = { id: e.pointerId, tool, page, type: 'touch', convert, viaContact: false };
         this.touchTool = tool;
         this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t0: e.timeStamp, vx: 0, vy: 0, lt: e.timeStamp });
@@ -363,7 +396,7 @@ export class InputController {
       this.active = null;
     }
     this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t0: e.timeStamp, vx: 0, vy: 0, lt: e.timeStamp });
-    this.stage.setPointerCapture(e.pointerId);
+    this.capture(e.pointerId);
     if (this.touches.size === 2) this.beginPinch();
   }
 

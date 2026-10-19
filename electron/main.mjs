@@ -16,6 +16,8 @@ const isWin = process.platform === 'win32';
 const de = () => app.getLocale().toLowerCase().startsWith('de');
 
 if (process.env.SCRIBO_USER_DATA) app.setPath('userData', process.env.SCRIBO_USER_DATA);
+// tests: report main-process errors on stderr instead of a modal error box nobody can click
+if (TEST) process.on('uncaughtException', (err) => console.error('Uncaught Exception:', err));
 if (isWin) app.setAppUserModelId('com.marcokeller.scribo');
 
 protocol.registerSchemesAsPrivileged([
@@ -76,7 +78,9 @@ function createWindow(paths = []) {
     },
   });
   const rec = { win, dirty: false, name: '', launch: paths, force: false };
-  windows.set(win.webContents.id, rec);
+  // webContents is already destroyed when 'closed' fires: remember its id now
+  const wcId = win.webContents.id;
+  windows.set(wcId, rec);
   if (saved.max) win.maximize();
   win.webContents.setVisualZoomLevelLimits(1, 1);
 
@@ -87,15 +91,18 @@ function createWindow(paths = []) {
   });
   win.on('resize', () => saveBounds(win));
   win.on('move', () => saveBounds(win));
-  win.on('enter-full-screen', () => win.webContents.send('fullscreen', true));
-  win.on('leave-full-screen', () => win.webContents.send('fullscreen', false));
+  const send = (channel, ...args) => {
+    if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send(channel, ...args);
+  };
+  win.on('enter-full-screen', () => send('fullscreen', true));
+  win.on('leave-full-screen', () => send('fullscreen', false));
   win.on('close', (e) => {
     if (rec.dirty && !rec.force) {
       e.preventDefault();
-      win.webContents.send('close-requested');
+      send('close-requested');
     }
   });
-  win.on('closed', () => windows.delete(win.webContents.id));
+  win.on('closed', () => windows.delete(wcId));
   win.webContents.on('render-process-gone', () => {
     if (!win.isDestroyed()) win.reload();
   });
@@ -285,7 +292,7 @@ ipcMain.handle('file:write', async (_e, p, data, opts) => {
 
 ipcMain.on('win:state', (e, s) => {
   const rec = recOf(e);
-  if (!rec) return;
+  if (!rec || rec.win.isDestroyed()) return;
   rec.dirty = !!s.dirty;
   rec.name = String(s.name ?? '');
   rec.win.setTitle(rec.name ? `${rec.dirty ? '• ' : ''}${rec.name} – Scribo` : 'Scribo');
@@ -318,13 +325,13 @@ ipcMain.on('win:close', (e) => {
   const rec = recOf(e);
   if (!rec) return;
   rec.force = true;
-  rec.win.close();
+  if (!rec.win.isDestroyed()) rec.win.close();
 });
 ipcMain.on('win:new', (_e, p) => createWindow(isPdf(p) ? [p] : []));
 ipcMain.on('win:fullscreen', (e, on) => recOf(e)?.win.setFullScreen(on));
 ipcMain.on('win:theme', (e, dark) => {
   const rec = recOf(e);
-  if (!rec) return;
+  if (!rec || rec.win.isDestroyed()) return;
   rec.win.setBackgroundColor(dark ? '#1e1e21' : '#f6f6f8');
   if (!isMac) {
     try {
@@ -376,7 +383,10 @@ function setupUpdates() {
     const { autoUpdater } = require('electron-updater');
     autoUpdater.autoDownload = true;
     autoUpdater.autoInstallOnAppQuit = true;
-    const broadcast = (u) => windows.forEach((w) => w.win.webContents.send('update', u));
+    const broadcast = (u) =>
+      windows.forEach((w) => {
+        if (!w.win.isDestroyed() && !w.win.webContents.isDestroyed()) w.win.webContents.send('update', u);
+      });
     autoUpdater.on('update-downloaded', (i) => broadcast({ state: 'downloaded', version: i.version }));
     autoUpdater.on('update-available', (i) => broadcast({ state: 'available', version: i.version }));
     autoUpdater.on('error', () => undefined);

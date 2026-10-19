@@ -28,6 +28,8 @@ export interface FileRef {
   /** browser File System Access handle */
   handle?: unknown;
   mtimeMs?: number;
+  /** a new notebook that was never saved */
+  untitled?: boolean;
 }
 
 export interface SessionEvents extends Record<string, unknown> {

@@ -1,5 +1,6 @@
 import { Emitter } from '../core/emitter';
 import type { FontId, Preset, ShapeTool, SnapMode, ToolId } from '../core/types';
+import type { BlankTemplate } from '../pdf/build';
 
 export type PenAction = 'erase' | 'lasso' | 'select' | 'none';
 
@@ -13,6 +14,8 @@ export interface Settings {
   palmRejection: boolean;
   /** 0..1, 0.5 = linear */
   sensitivity: number;
+  /** how much pressure changes the line width: 0 = constant, 1 = full range */
+  pressureAmount: number;
   snap: SnapMode;
   penButtons: { barrel: PenAction; eraser: PenAction; middle: PenAction };
   eraserMode: 'stroke' | 'point';
@@ -21,6 +24,10 @@ export interface Settings {
   lowLatency: boolean;
   sidebar: boolean;
   sidebarTab: 'pages' | 'outline' | 'search' | 'notes';
+  /** paper of the last blank page / new notebook */
+  paper: BlankTemplate;
+  /** version of the stored settings (migrations) */
+  schema: number;
 
   tool: ToolId;
   favorites: Preset[];
@@ -44,14 +51,18 @@ export const DEFAULTS: Settings = {
   mouseDraws: true,
   palmRejection: true,
   sensitivity: 0.5,
+  pressureAmount: 0.55,
   snap: 'auto',
-  penButtons: { barrel: 'erase', eraser: 'lasso', middle: 'none' },
+  // the eraser code (32) erases, the side button (2) selects
+  penButtons: { barrel: 'lasso', eraser: 'erase', middle: 'none' },
   eraserMode: 'stroke',
   eraserSize: 9,
   autosave: false,
   lowLatency: false,
   sidebar: false,
   sidebarTab: 'pages',
+  paper: 'lined',
+  schema: 2,
 
   tool: 'pen',
   favorites: [
@@ -101,6 +112,12 @@ class Store extends Emitter<{ change: keyof Settings }> {
       else (d[k] as unknown) = v;
     }
     if (!Array.isArray(d.favorites) || !d.favorites.length) d.favorites = structuredClone(DEFAULTS.favorites);
+    if (!saved.schema || saved.schema < 2) {
+      // 1.0 shipped with the side button erasing; pens send the eraser code for the eraser button
+      const b = d.penButtons;
+      if (b.barrel === 'erase' && b.eraser === 'lasso') d.penButtons = { ...b, barrel: 'lasso', eraser: 'erase' };
+    }
+    d.schema = DEFAULTS.schema;
     return d;
   }
 

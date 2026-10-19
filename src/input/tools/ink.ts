@@ -1,6 +1,7 @@
 import type { AnyObj, InkObj, ShapeObj } from '../../core/types';
 import { uid } from '../../core/objects';
-import { decimate, roundPts } from '../../core/ink';
+import { decimate, pressureCurve, roundPts } from '../../core/ink';
+import { PressureFilter, roundEnd } from '../../core/pressure';
 import { recognizeShape } from '../../core/recognize';
 import type { Recognized } from '../../core/recognize';
 import { dist } from '../../core/geometry';
@@ -34,6 +35,10 @@ export class InkTool implements Tool {
   private convert: ((x: number, y: number) => { x: number; y: number }) | null = null;
   private raf = 0;
   private predicted: number[] = [];
+  private filter = new PressureFilter(1);
+  /** first raw pressure and whether every raw sample so far had exactly that value */
+  private raw0 = -1;
+  private rawFlat = true;
 
   constructor(private ed: EditorApi, kind: 'pen' | 'highlighter') {
     this.id = kind;
@@ -57,8 +62,11 @@ export class InkTool implements Tool {
     this.pts = [];
     this.predicted = [];
     this.snapped = null;
-    for (const s of e.samples) this.pts.push(s.x, s.y, e.pointerType === 'pen' ? s.p : 0.5);
-    if (!this.pts.length) this.pts.push(e.x, e.y, e.pointerType === 'pen' ? e.pressure : 0.5);
+    this.filter = new PressureFilter(settings.get('pressureAmount'));
+    this.raw0 = -1;
+    this.rawFlat = true;
+    for (const s of e.samples) this.push(s.x, s.y, s.p);
+    if (!this.pts.length) this.push(e.x, e.y, e.pressure);
     this.anchor = { x: e.clientX, y: e.clientY };
     this.page.liveCtx();
     this.page.liveCanvas?.classList.toggle('multiply', this.id === 'highlighter');
@@ -84,14 +92,13 @@ export class InkTool implements Tool {
       }
       return;
     }
-    for (const s of e.samples) this.pts.push(s.x, s.y, this.pointerType === 'pen' ? s.p : 0.5);
+    for (const s of e.samples) this.push(s.x, s.y, s.p);
     this.predicted = [];
-    for (const s of e.predicted.slice(0, 2)) this.predicted.push(s.x, s.y, this.pointerType === 'pen' ? s.p : 0.5);
-    if (!this.sim && this.pointerType === 'pen' && this.pts.length > 18) {
+    const last = this.pts.length ? this.pts[this.pts.length - 1] : 0.5;
+    for (const s of e.predicted.slice(0, 2)) this.predicted.push(s.x, s.y, last);
+    if (!this.sim && this.pointerType === 'pen' && this.pts.length > 18 && this.rawFlat && Math.abs(this.raw0 - pressureCurve(0.5, settings.get('sensitivity'))) < 1e-3) {
       // hardware without pressure reports a constant value: fall back to speed based width
-      let flat = true;
-      for (let i = 5; i < this.pts.length; i += 3) if (Math.abs(this.pts[i] - this.pts[2]) > 1e-3) { flat = false; break; }
-      if (flat && Math.abs(this.pts[2] - 0.5) < 1e-3) this.sim = true;
+      this.sim = true;
     }
     if (dist(e.clientX, e.clientY, this.anchor.x, this.anchor.y) > HOLD_SLOP) {
       this.anchor = { x: e.clientX, y: e.clientY };
@@ -103,7 +110,8 @@ export class InkTool implements Tool {
   up(e: ToolEvent): void {
     if (!this.page) return;
     const page = this.page;
-    for (const s of e.samples) this.pts.push(s.x, s.y, this.pointerType === 'pen' ? s.p : 0.5);
+    // the lift-off sample carries (almost) no pressure: it would only thin the end
+    for (const s of e.samples) this.push(s.x, s.y, this.pts.length ? this.pts[this.pts.length - 1] : s.p, true);
     this.predicted = [];
     clearTimeout(this.holdTimer);
     cancelAnimationFrame(this.raf);
@@ -123,6 +131,19 @@ export class InkTool implements Tool {
     this.page?.clearLive();
     this.page?.liveCanvas?.classList.remove('multiply');
     this.reset();
+  }
+
+  /** Append a sample; pen pressure goes through the user's pressure filter. */
+  private push(x: number, y: number, p: number, filtered = false): void {
+    if (this.pointerType !== 'pen') {
+      this.pts.push(x, y, 0.5);
+      return;
+    }
+    if (!filtered) {
+      if (this.raw0 < 0) this.raw0 = p;
+      else if (Math.abs(p - this.raw0) > 1e-3) this.rawFlat = false;
+    }
+    this.pts.push(x, y, filtered ? p : this.filter.next(p));
   }
 
   private reset(): void {
@@ -182,7 +203,7 @@ export class InkTool implements Tool {
     const s = this.ed.viewer.scale;
     let p = this.pts;
     if (p.length < 6) p = [p[0], p[1], p[2] ?? 0.5, p[0] + 0.01, p[1], p[2] ?? 0.5];
-    p = roundPts(decimate(p, Math.max(0.12, 0.45 / s)));
+    p = roundPts(decimate(roundEnd(p), Math.max(0.12, 0.45 / s)));
     const st = this.style;
     const o: InkObj = { id: uid(), t: 'ink', c: st.color, w: st.width, p };
     if (this.id === 'highlighter') o.hl = 1;

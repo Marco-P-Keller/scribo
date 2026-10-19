@@ -29,15 +29,16 @@ Die Installation braucht keine Administratorrechte, Updates kommen automatisch v
 
 ## Funktionen
 
-- **Druckempfindliche Tinte** mit Druck-, Tempo- und Auslauf-Dynamik (Pointer Events: Druck, Neigung, Stifttasten)
+- **Druckempfindliche Tinte** mit runden Strichenden, leichter Glättung und einstellbarem Druckeinfluss (Fineliner bis Füllfeder); der Strich erscheint live unter der Stiftspitze
 - **Stift & Textmarker** mit Farbe, Stärke und Deckkraft, als **Favoriten-Leiste** (Ziehen zum Umsortieren)
 - **Automatische Formerkennung**: Kreis, Ellipse, Rechteck, Dreieck, Linie – nach kurzem Ruhen des Stifts („Halten“) oder sofort beim Absetzen („Auto“)
-- **Stifttasten**: Taste 1 radiert ganze Linien, Taste 2 öffnet das Lasso (frei belegbar, mit Live-Test unter *Einstellungen*)
-- **Lasso & Auswahl**: Handschrift auswählen, kopieren, ausschneiden, verschieben, skalieren, drehen, umfärben
+- **Stifttasten**: Taste 1 (Radiertaste, Code 32) radiert ganze Linien, Taste 2 (Seitentaste, Code 2) öffnet das Lasso; frei belegbar, mit Live-Test unter *Einstellungen*, in dem die gedrückte Taste aufleuchtet
+- **Lasso & Auswahl**: Handschrift auswählen, kopieren, ausschneiden, verschieben, skalieren, drehen, umfärben; eine per Stifttaste gezogene Auswahl lässt sich direkt mit der Stiftspitze verschieben und transformieren
 - **Radierer** (Linie oder Punkt), unbegrenzt **Rückgängig / Wiederholen**
 - **Formen** (Linie, Pfeil, Rechteck, Ellipse, Polygon, Linienzug) mit Füllung und Strichart, **Text** (4 Schriften), **Haftnotizen** (echte PDF-Kommentare), **Bilder**
 - **Textmarker auf PDF-Text**: Text markieren → hervorheben, unterstreichen, durchstreichen
-- **Seiten**: leere / linierte / karierte / gepunktete Seiten einfügen, drehen, sortieren, duplizieren, löschen
+- **Neues Notizbuch** auf Notizpapier (liniert, 8 mm), Häuschenpapier (kariert, 5 mm), Punktraster oder leer, hoch oder quer
+- **Seiten**: Seiten mit Papiervorlage einfügen, „Seite hinzufügen“ unter der letzten Seite, drehen, sortieren, duplizieren, löschen
 - **Suche**, Gliederung, Miniaturen, Notizen-Übersicht, Drucken, Hell/Dunkel
 - **Touch**: Scrollen, Pinch-Zoom, Handballen-Erkennung
 

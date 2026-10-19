@@ -79,6 +79,13 @@ export class Editor extends Emitter<EditorEvents> implements EditorApi {
       toolForAction: (a: PenAction) => (a === 'erase' ? this.eraser : a === 'lasso' ? this.lasso : a === 'select' ? this.select : null),
       isDrawing: (t) => t.id !== 'select' && t.id !== 'pan',
       isSpaceHeld: () => this.spaceHeld,
+      overrideAt: (page, cx, cy, type) => {
+        // a selection made with the pen button stays grabbable with the plain tip
+        const sel = this.selection;
+        if (!sel.active || sel.page !== page || ['select', 'lasso'].includes(this.activeTool.id)) return null;
+        const q = page.clientToPage(cx, cy);
+        return sel.hit(q.x, q.y, type === 'touch') ? this.lasso : null;
+      },
       onPenInfo: (info) => this.emit('penInfo', info),
     });
     settings.on('change', (key) => {

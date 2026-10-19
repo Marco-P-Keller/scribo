@@ -36,6 +36,8 @@ export class Viewer extends Emitter<ViewerEvents> implements PageHost {
   readonly content = document.createElement('div');
   /** non-scrolling layer above the stage for floating UI */
   readonly overlay = document.createElement('div');
+  /** "add a page" button under the last page (content and action are set by the app) */
+  readonly addPageButton = document.createElement('button');
 
   session!: DocSession;
   desynchronized = false;
@@ -64,6 +66,9 @@ export class Viewer extends Emitter<ViewerEvents> implements PageHost {
     this.stage.tabIndex = -1;
     this.content.className = 'doc';
     this.overlay.className = 'viewer-overlay';
+    this.addPageButton.className = 'add-page viewer-ui';
+    this.addPageButton.hidden = true;
+    this.content.append(this.addPageButton);
     this.stage.append(this.content);
     this.el.append(this.stage, this.overlay);
 
@@ -151,6 +156,9 @@ export class Viewer extends Emitter<ViewerEvents> implements PageHost {
     this.contentW = Math.max(maxW + 2 * PAD_X, this.stage.clientWidth);
     this.content.style.width = `${this.contentW}px`;
     this.content.style.height = `${this.contentH}px`;
+    const b = this.addPageButton;
+    b.style.left = `${this.contentW / 2}px`;
+    b.style.top = `${y - GAP + 34}px`;
     for (const v of this.views.values()) this.positionView(v);
   }
 

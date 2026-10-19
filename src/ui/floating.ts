@@ -26,14 +26,17 @@ function btn(name: IconName, label: string, onClick: (e: MouseEvent) => void, cl
   return h('button.fl-btn', { title: label, 'aria-label': label, class: cls, onclick: onClick as EventListener }, icon(name, 17));
 }
 
-/** Position `el` (absolute inside `host`) above or below a client rect, kept inside the host. */
-function placeNear(el: HTMLElement, host: HTMLElement, r: { x: number; y: number; w: number; h: number }): void {
+/**
+ * Position `el` (absolute inside `host`) above or below a client rect, kept inside the host.
+ * `above` / `below` keep room for chrome around the rect (e.g. the rotate handle).
+ */
+function placeNear(el: HTMLElement, host: HTMLElement, r: { x: number; y: number; w: number; h: number }, above = 12, below = 12): void {
   const hb = host.getBoundingClientRect();
   const w = el.offsetWidth;
   const hgt = el.offsetHeight;
   let x = r.x + r.w / 2 - hb.left - w / 2;
-  let y = r.y - hb.top - hgt - 12;
-  if (y < 8) y = r.y + r.h - hb.top + 12;
+  let y = r.y - hb.top - hgt - above;
+  if (y < 8) y = r.y + r.h - hb.top + below;
   x = Math.max(8, Math.min(hb.width - w - 8, x));
   y = Math.max(8, Math.min(hb.height - hgt - 8, y));
   el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
@@ -102,7 +105,8 @@ export class FloatingMenus {
     const sel = this.app.editor.selection;
     const sb = sel.active && !sel.dragging ? sel.clientBounds() : null;
     this.selMenu.classList.toggle('show', !!sb);
-    if (sb) placeNear(this.selMenu, host, sb);
+    // keep the rotate handle (above) and the bottom handles free
+    if (sb) placeNear(this.selMenu, host, sb, sel.canTransform() ? 50 : 14, 20);
 
     // text mark-up menu (native text selection in the select tool)
     const s = window.getSelection();

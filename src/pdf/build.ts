@@ -417,6 +417,13 @@ export type StructureOp =
   | { op: 'insertPdf'; at: number; bytes: Uint8Array; pages: number[] }
   | { op: 'duplicate'; pages: number[] };
 
+/** Spacing of the paper patterns in pt: lined ≈ 8 mm, grid and dots 5 mm ("Häuschenpapier"). */
+export const PAPER_STEP = { lined: 22.68, grid: 14.17, dotted: 14.17 } as const;
+
+/**
+ * Paper pattern of a blank page, centred so that the margins are equal on all sides.
+ * Lined paper has a header area and a margin line like a school notebook.
+ */
 function drawTemplate(doc: PDFDocument, index: number, w: number, h: number, template: BlankTemplate): void {
   if (template === 'blank') return;
   const page = doc.getPage(index);
@@ -424,21 +431,52 @@ function drawTemplate(doc: PDFDocument, index: number, w: number, h: number, tem
     const [r, g, b] = hexToRgb(hex);
     return pdfRgb(r / 255, g / 255, b / 255);
   };
-  const line = rgb('#c5d2e6');
-  const step = template === 'lined' ? 24 : 14.17;
+  const step = PAPER_STEP[template];
+  // 10 mm margin, then as many whole cells as fit, centred
+  const fit = (len: number) => {
+    const n = Math.floor((len - 2 * 28.35) / step);
+    return { n, o: (len - n * step) / 2 };
+  };
+  const X = fit(w);
+  const Y = fit(h);
   if (template === 'lined') {
-    for (let y = 64; y < h - 24; y += step) {
-      page.drawLine({ start: { x: 36, y: h - y }, end: { x: w - 36, y: h - y }, thickness: 0.6, color: line });
+    const line = rgb('#b9c9e2');
+    const top = 62;
+    for (let y = top; y <= h - 34; y += step) {
+      page.drawLine({ start: { x: 28.35, y: h - y }, end: { x: w - 28.35, y: h - y }, thickness: 0.55, color: line });
     }
+    page.drawLine({ start: { x: 70.9, y: h - 28 }, end: { x: 70.9, y: 28 }, thickness: 0.6, color: rgb('#f2a7a7') });
   } else if (template === 'grid') {
-    for (let x = 28.34; x < w - 14; x += step) page.drawLine({ start: { x, y: 28 }, end: { x, y: h - 28 }, thickness: 0.4, color: line });
-    for (let y = 28.34; y < h - 14; y += step) page.drawLine({ start: { x: 28, y: h - y }, end: { x: w - 28, y: h - y }, thickness: 0.4, color: line });
+    const line = rgb('#c6d4ea');
+    const x1 = X.o + X.n * step;
+    const y1 = Y.o + Y.n * step;
+    for (let i = 0; i <= X.n; i++) {
+      const x = X.o + i * step;
+      page.drawLine({ start: { x, y: h - Y.o }, end: { x, y: h - y1 }, thickness: 0.4, color: line });
+    }
+    for (let j = 0; j <= Y.n; j++) {
+      const y = Y.o + j * step;
+      page.drawLine({ start: { x: X.o, y: h - y }, end: { x: x1, y: h - y }, thickness: 0.4, color: line });
+    }
   } else {
     const dot = rgb('#9fb0c8');
-    for (let x = 28.34; x < w - 14; x += step) {
-      for (let y = 28.34; y < h - 14; y += step) page.drawCircle({ x, y: h - y, size: 0.55, color: dot, borderWidth: 0 });
+    for (let i = 0; i <= X.n; i++) {
+      for (let j = 0; j <= Y.n; j++) page.drawCircle({ x: X.o + i * step, y: h - (Y.o + j * step), size: 0.6, color: dot, borderWidth: 0 });
     }
   }
+}
+
+/** A new document of `count` blank pages with the given paper. */
+export async function createBlank(w: number, h: number, template: BlankTemplate, count = 1): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  doc.setTitle('Notizen');
+  doc.setCreator('Scribo');
+  doc.setProducer('Scribo');
+  for (let i = 0; i < count; i++) {
+    doc.addPage([w, h]);
+    drawTemplate(doc, i, w, h, template);
+  }
+  return doc.save({ useObjectStreams: true, addDefaultPage: false });
 }
 
 /** Applies page-structure edits and returns the new file. */

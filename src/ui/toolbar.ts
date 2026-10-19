@@ -28,7 +28,7 @@ addStrings(
     'text.font': 'Schrift', 'text.size': 'Größe', 'text.style': 'Stil', 'text.align': 'Ausrichtung',
     'note.color': 'Farbe der Notiz',
     'tb.undo': 'Rückgängig', 'tb.redo': 'Wiederholen', 'tb.search': 'Suchen', 'tb.save': 'Speichern', 'tb.more': 'Mehr', 'tb.sidebar': 'Seitenleiste',
-    'tb.saved': 'Gespeichert', 'tb.edited': 'Nicht gespeichert', 'tb.untitled': 'Kein Dokument',
+    'tb.saved': 'Gespeichert', 'tb.edited': 'Nicht gespeichert', 'tb.new': 'Neu – noch nicht gespeichert', 'tb.untitled': 'Kein Dokument',
     'tb.width': 'Stärke',
   },
   {
@@ -46,7 +46,7 @@ addStrings(
     'text.font': 'Font', 'text.size': 'Size', 'text.style': 'Style', 'text.align': 'Alignment',
     'note.color': 'Note color',
     'tb.undo': 'Undo', 'tb.redo': 'Redo', 'tb.search': 'Search', 'tb.save': 'Save', 'tb.more': 'More', 'tb.sidebar': 'Sidebar',
-    'tb.saved': 'Saved', 'tb.edited': 'Unsaved changes', 'tb.untitled': 'No document',
+    'tb.saved': 'Saved', 'tb.edited': 'Unsaved changes', 'tb.new': 'New – not saved yet', 'tb.untitled': 'No document',
     'tb.width': 'Thickness',
   },
 );
@@ -128,7 +128,8 @@ export class Toolbar {
     this.redoBtn.title = model?.canRedo ? `${t('tb.redo')}: ${model.redoLabel} (Ctrl+Y)` : t('tb.redo');
     this.saveBtn.disabled = !this.app.session;
     this.saveBtn.classList.toggle('dirty', dirty);
-    this.statusEl.textContent = this.app.session ? (dirty ? t('tb.edited') : t('tb.saved')) : '';
+    const s = this.app.session;
+    this.statusEl.textContent = s ? (dirty ? t('tb.edited') : s.file.untitled ? t('tb.new') : t('tb.saved')) : '';
     this.statusEl.classList.toggle('dirty', dirty);
     this.el.classList.toggle('dirty', dirty);
   }
@@ -544,12 +545,13 @@ export class Toolbar {
     const has = !!a.session;
     showMenu(anchor, [
       { label: lbl('Öffnen …', 'Open …'), icon: 'open', shortcut: 'Ctrl+O', onClick: () => a.openDialog() },
+      { label: lbl('Neues Notizbuch …', 'New notebook …'), icon: 'newPage', onClick: () => a.newNotebook() },
       { label: lbl('Speichern', 'Save'), icon: 'save', shortcut: 'Ctrl+S', disabled: !has, onClick: () => void a.save() },
       { label: lbl('Speichern unter …', 'Save as …'), icon: 'saveAs', shortcut: 'Ctrl+Shift+S', disabled: !has, onClick: () => void a.saveAs() },
       { label: lbl('Flache Kopie exportieren …', 'Export flattened copy …'), icon: 'download', disabled: !has, onClick: () => void a.exportCopy(true) },
       { label: lbl('Drucken …', 'Print …'), icon: 'print', shortcut: 'Ctrl+P', disabled: !has, onClick: () => void a.print() },
       { separator: true },
-      { label: lbl('Leere Seite einfügen …', 'Insert blank page …'), icon: 'newPage', disabled: !has, onClick: () => a.insertBlankPage() },
+      { label: lbl('Leere Seite einfügen …', 'Insert blank page …'), icon: 'plus', disabled: !has, onClick: () => a.insertBlankPage() },
       { label: lbl('Bild einfügen …', 'Insert image …'), icon: 'image', disabled: !has, onClick: () => a.editor.pickImage() },
       { separator: true },
       { label: lbl('Neues Fenster', 'New window'), icon: 'file', shortcut: 'Ctrl+N', onClick: () => a.newWindow() },
