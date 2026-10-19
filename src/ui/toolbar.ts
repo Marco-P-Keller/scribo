@@ -8,6 +8,7 @@ import { icon, instrument } from './icons';
 import type { IconName } from './icons';
 import { Popover, field, segmented, showMenu, slider, toggle } from './popover';
 import { colorPanel } from './colorpicker';
+import { smoothingLabel } from './smooth-preview';
 import { FONT_FAMILY } from '../render/fonts';
 import { confirmDialog } from './dialogs';
 import { addStrings, t } from './i18n';
@@ -17,7 +18,7 @@ addStrings(
     'tool.select': 'Auswahl', 'tool.pen': 'Stift', 'tool.highlighter': 'Textmarker', 'tool.eraser': 'Radierer', 'tool.lasso': 'Lasso',
     'tool.text': 'Text', 'tool.shape': 'Formen', 'tool.note': 'Notiz', 'tool.image': 'Bild einfügen',
     'fav.add': 'Stift hinzufügen', 'fav.addPen': 'Neuer Stift', 'fav.addHl': 'Neuer Textmarker', 'fav.remove': 'Entfernen', 'fav.duplicate': 'Duplizieren',
-    'pop.width': 'Stärke', 'pop.color': 'Farbe', 'pop.opacity': 'Deckkraft', 'pop.snap': 'Formerkennung',
+    'pop.width': 'Stärke', 'pop.color': 'Farbe', 'pop.opacity': 'Deckkraft', 'pop.snap': 'Formerkennung', 'pop.smooth': 'Glättung',
     'snap.off': 'Aus', 'snap.hold': 'Halten', 'snap.auto': 'Auto',
     'snap.hint': 'Halten: Stift am Strichende ruhen lassen. Auto: sofort beim Absetzen.',
     'eraser.mode': 'Modus', 'eraser.stroke': 'Linie', 'eraser.point': 'Punkt', 'eraser.size': 'Größe', 'eraser.clearPage': 'Seite leeren',
@@ -35,7 +36,7 @@ addStrings(
     'tool.select': 'Select', 'tool.pen': 'Pen', 'tool.highlighter': 'Highlighter', 'tool.eraser': 'Eraser', 'tool.lasso': 'Lasso',
     'tool.text': 'Text', 'tool.shape': 'Shapes', 'tool.note': 'Note', 'tool.image': 'Insert image',
     'fav.add': 'Add pen', 'fav.addPen': 'New pen', 'fav.addHl': 'New highlighter', 'fav.remove': 'Remove', 'fav.duplicate': 'Duplicate',
-    'pop.width': 'Thickness', 'pop.color': 'Color', 'pop.opacity': 'Opacity', 'pop.snap': 'Shape recognition',
+    'pop.width': 'Thickness', 'pop.color': 'Color', 'pop.opacity': 'Opacity', 'pop.snap': 'Shape recognition', 'pop.smooth': 'Smoothing',
     'snap.off': 'Off', 'snap.hold': 'Hold', 'snap.auto': 'Auto',
     'snap.hint': 'Hold: rest the pen at the end of a stroke. Auto: snaps as soon as you lift.',
     'eraser.mode': 'Mode', 'eraser.stroke': 'Stroke', 'eraser.point': 'Point', 'eraser.size': 'Size', 'eraser.clearPage': 'Clear page',
@@ -363,6 +364,7 @@ export class Toolbar {
       body.append(field(t('pop.opacity'), slider({ min: 30, max: 100, step: 5, value: Math.round((p.opacity ?? 1) * 100), format: (v) => `${v} %`, onInput: (v) => apply({ opacity: v / 100 }) })));
     }
     body.append(
+      field(t('pop.smooth'), slider({ min: 0, max: 1, step: 0.05, value: settings.get('smoothing'), format: smoothingLabel, onInput: (v) => settings.set('smoothing', v) })),
       field(
         t('pop.snap'),
         segmented(

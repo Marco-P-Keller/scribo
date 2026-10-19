@@ -1,7 +1,8 @@
 import type { AnyObj, InkObj, ShapeObj } from '../../core/types';
 import { uid } from '../../core/objects';
-import { decimate, pressureCurve, roundPts } from '../../core/ink';
-import { PressureFilter, roundEnd } from '../../core/pressure';
+import { pressureCurve, strokePoints } from '../../core/ink';
+import { PressureFilter } from '../../core/pressure';
+import { smoothStroke, type SmoothOptions } from '../../core/smooth';
 import { recognizeShape } from '../../core/recognize';
 import type { Recognized } from '../../core/recognize';
 import { dist } from '../../core/geometry';
@@ -38,7 +39,7 @@ export class InkTool implements Tool {
   private filter = new PressureFilter(1);
   /** pressure (or speed) changes the width of this stroke */
   private varies = false;
-  private smoothing = 0.5;
+  private smooth: SmoothOptions = { strength: 0.5, corners: true, unit: 1 };
   /** first raw pressure and whether every raw sample so far had exactly that value */
   private raw0 = -1;
   private rawFlat = true;
@@ -62,7 +63,8 @@ export class InkTool implements Tool {
     this.pointerType = e.pointerType;
     this.convert = e.page.converter();
     this.varies = settings.get('pressureWidth');
-    this.smoothing = settings.get('smoothing');
+    // smoothing works in screen pixels: the zoom at which the stroke is written decides the scale
+    this.smooth = { strength: settings.get('smoothing'), corners: settings.get('smoothCorners'), unit: 1 / this.ed.viewer.scale };
     this.sim = this.varies && e.pointerType !== 'pen';
     this.pts = [];
     this.predicted = [];
@@ -205,15 +207,10 @@ export class InkTool implements Tool {
       const rec = recognizeShape(this.xy(), 'auto');
       if (rec && (this.id === 'pen' || rec.kind === 'line')) return this.shapeFrom(rec);
     }
-    const s = this.ed.viewer.scale;
-    let p = this.pts;
-    if (p.length < 6) p = [p[0], p[1], p[2] ?? 0.5, p[0] + 0.01, p[1], p[2] ?? 0.5];
-    p = roundPts(decimate(roundEnd(p), Math.max(0.12, 0.45 / s)));
     const st = this.style;
-    const o: InkObj = { id: uid(), t: 'ink', c: st.color, w: st.width, p };
+    const o: InkObj = { id: uid(), t: 'ink', c: st.color, w: st.width, p: strokePoints(this.pts, this.smooth), v: 2 };
     if (this.id === 'highlighter') o.hl = 1;
     if (this.sim) o.sim = 1;
-    if (this.smoothing !== 0.5) o.sm = this.smoothing;
     if (st.opacity !== undefined && st.opacity < 1) o.o = st.opacity;
     return o;
   }
@@ -238,11 +235,11 @@ export class InkTool implements Tool {
       return;
     }
     const st = this.style;
-    const p = this.predicted.length ? this.pts.concat(this.predicted) : this.pts;
-    const live: InkObj = { id: 'live', t: 'ink', c: st.color, w: st.width, p: p.length < 6 ? [p[0], p[1], p[2], p[0] + 0.01, p[1], p[2]] : p };
+    // the same smoothing as the stored stroke, so lifting the pen changes nothing
+    const p = smoothStroke(this.predicted.length ? this.pts.concat(this.predicted) : this.pts, this.smooth);
+    const live: InkObj = { id: 'live', t: 'ink', c: st.color, w: st.width, p: p.length < 6 ? [p[0], p[1], p[2], p[0] + 0.01, p[1], p[2]] : p, v: 2 };
     if (this.id === 'highlighter') live.hl = 1;
     if (this.sim) live.sim = 1;
-    if (this.smoothing !== 0.5) live.sm = this.smoothing;
     if (st.opacity !== undefined && st.opacity < 1) live.o = st.opacity;
     drawObj(ctx, live);
   }

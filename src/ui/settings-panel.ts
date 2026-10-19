@@ -1,9 +1,10 @@
-import { getStroke } from 'perfect-freehand';
 import type { AppApi } from '../app/api';
 import { settings } from '../app/settings';
 import type { PenAction } from '../app/settings';
-import { pressureCurve, outlinePath, strokeOptions } from '../core/ink';
+import { pressureCurve, outlineOf, outlinePath } from '../core/ink';
 import { PressureFilter, roundEnd } from '../core/pressure';
+import { smoothStroke } from '../core/smooth';
+import { smoothPreview, smoothingLabel } from './smooth-preview';
 import { penTouching } from '../input/pen';
 import type { SnapMode } from '../core/types';
 import { h } from './dom';
@@ -20,8 +21,10 @@ addStrings(
     'set.pressure': 'Druckempfindlichkeit', 'set.pressureHint': 'Links: fester drücken für dicke Linien. Rechts: schon leichter Druck reicht.',
     'set.pressureWidth': 'Einfluss des Drucks auf die Strichbreite', 'set.pressureWidthHint': 'Aus: Jede Linie ist gleich breit wie mit einem Fineliner. Ein: Fester drücken gibt dickere Linien.',
     'set.pressureAmount': 'Stärke des Einflusses', 'set.pressureAmountHint': 'Links: kaum Unterschied. Rechts: kräftiger Schwung wie mit einer Füllfeder.',
-    'set.smoothing': 'Glättung beim Schreiben', 'set.smoothingHint': 'Links: schwach, die Linie folgt jeder Bewegung des Stifts. Rechts: stark, ruhige und runde Linien.',
-    'set.weak': 'Schwach', 'set.strong': 'Stark',
+    'set.smooth': 'Glättung', 'set.smoothing': 'Stärke', 'set.smoothingHint': 'Links: Die Linie folgt jeder Bewegung des Stifts. Rechts: ruhige, runde Linien. Die Tinte bleibt bei jeder Stärke genau unter der Stiftspitze.',
+    'set.corners': 'Ecken scharf halten', 'set.cornersHint': 'Spitzen wie in k, z, 4 oder M bleiben spitz, nur das Zittern dazwischen wird geglättet.',
+    'set.smoothLegend': 'Beispiel: leicht zittrige Handschrift, geglättet mit deiner Einstellung',
+    'set.smoothFoot': 'Gilt für neue Striche. Ältere Striche glättest du nachträglich: auswählen und „Striche glätten“ tippen.',
     'set.snap': 'Formerkennung', 'set.lowLatency': 'Geringere Schreib-Verzögerung', 'set.lowLatencyHint': 'Experimentell. Bei Flackern oder fehlender Tinte ausschalten.',
     'set.buttons': 'Stifttasten', 'set.btn1': 'Seitentaste (Code 2)', 'set.btn2': 'Radiertaste / Radierer-Ende (Code 32)', 'set.btn3': 'Weitere Taste (Code 4)',
     'set.buttonsHint': 'Halte den Stift über das Testfeld und drücke eine Taste: Die passende Zeile leuchtet auf.',
@@ -45,8 +48,10 @@ addStrings(
     'set.pressure': 'Pressure sensitivity', 'set.pressureHint': 'Left: press harder for thick lines. Right: light pressure is enough.',
     'set.pressureWidth': 'Pressure changes the line width', 'set.pressureWidthHint': 'Off: every line has the same width, like a fineliner. On: press harder for thicker lines.',
     'set.pressureAmount': 'Strength', 'set.pressureAmountHint': 'Left: barely any difference. Right: lively swell like a fountain pen.',
-    'set.smoothing': 'Smoothing while writing', 'set.smoothingHint': 'Left: weak, the line follows every movement of the pen. Right: strong, calm and round lines.',
-    'set.weak': 'Weak', 'set.strong': 'Strong',
+    'set.smooth': 'Smoothing', 'set.smoothing': 'Strength', 'set.smoothingHint': 'Left: the line follows every movement of the pen. Right: calm, round lines. At every strength the ink stays exactly under the pen tip.',
+    'set.corners': 'Keep corners sharp', 'set.cornersHint': 'Points like in k, z, 4 or M stay pointed; only the jitter in between is smoothed.',
+    'set.smoothLegend': 'Sample: slightly shaky handwriting, smoothed with your setting',
+    'set.smoothFoot': 'Applies to new strokes. To smooth older strokes, select them and tap “Smooth strokes”.',
     'set.snap': 'Shape recognition', 'set.lowLatency': 'Lower writing latency', 'set.lowLatencyHint': 'Experimental. Turn off if you see flicker or missing ink.',
     'set.buttons': 'Pen buttons', 'set.btn1': 'Side button (code 2)', 'set.btn2': 'Eraser button / eraser end (code 32)', 'set.btn3': 'Other button (code 4)',
     'set.buttonsHint': 'Hold the pen over the test field and press a button: the matching row lights up.',
@@ -109,11 +114,10 @@ function penTestPad(onButtons: (bits: number) => void): { el: HTMLElement; dispo
     ctx.fillStyle = getComputedStyle(canvas).color;
     for (const pts of strokes) {
       if (!pts.length) continue;
-      const flat = roundEnd(pts.flat());
-      const tri: number[][] = [];
-      for (let i = 0; i < flat.length; i += 3) tri.push([flat[i], flat[i + 1], flat[i + 2]]);
-      if (tri.length === 1) tri.push([tri[0][0] + 0.01, tri[0][1], tri[0][2]]);
-      ctx.fill(outlinePath(getStroke(tri, strokeOptions({ w: 3.2, sm: settings.get('smoothing') })) as [number, number][]));
+      let flat = pts.flat();
+      if (flat.length === 3) flat = [...flat, flat[0] + 0.01, flat[1], flat[2]];
+      flat = roundEnd(smoothStroke(flat, { strength: settings.get('smoothing'), corners: settings.get('smoothCorners'), unit: 1 }));
+      ctx.fill(outlinePath(outlineOf(flat, { w: 3.2, v: 2 })));
     }
   };
   const pos = (e: PointerEvent) => {
@@ -210,7 +214,9 @@ export async function showSettings(app: AppApi): Promise<void> {
     }
   };
   paintPressure();
-  const smoothing = (v: number) => (v <= 0.2 ? t('set.weak') : v >= 0.8 ? t('set.strong') : `${Math.round(v * 100)} %`);
+  const preview = smoothPreview(() => ({ strength: s.get('smoothing'), corners: s.get('smoothCorners') }));
+  const watch = new ResizeObserver(() => preview.paint());
+  watch.observe(preview.el);
 
   const section = (title: string, group: HTMLElement, foot?: string) =>
     h('section', null, h('h3', null, title), group, foot ? h('div.group-foot', null, foot) : null);
@@ -246,7 +252,6 @@ export async function showSettings(app: AppApi): Promise<void> {
       row(t('set.finger'), toggle(s.get('fingerDraws'), (v) => s.set('fingerDraws', v)), t('set.fingerHint')),
       row(t('set.mouse'), toggle(s.get('mouseDraws'), (v) => s.set('mouseDraws', v))),
       row(t('set.palm'), toggle(s.get('palmRejection'), (v) => s.set('palmRejection', v)), t('set.palmHint')),
-      field(t('set.smoothing'), slider({ min: 0, max: 1, step: 0.05, value: s.get('smoothing'), format: smoothing, onInput: (v) => s.set('smoothing', v) }), t('set.smoothingHint')),
       row(t('set.pressureWidth'), toggle(s.get('pressureWidth'), (v) => { s.set('pressureWidth', v); paintPressure(); }), t('set.pressureWidthHint')),
       ...pressureFields,
       field(t('set.snap'), segmented(
@@ -260,6 +265,11 @@ export async function showSettings(app: AppApi): Promise<void> {
       ), t('snap.hint')),
       row(t('set.lowLatency'), toggle(s.get('lowLatency'), (v) => s.set('lowLatency', v)), t('set.lowLatencyHint')),
     )),
+    section(t('set.smooth'), group(
+      h('div.pad-wrap', null, preview.el, h('div.set-hint', null, t('set.smoothLegend'))),
+      field(t('set.smoothing'), slider({ min: 0, max: 1, step: 0.05, value: s.get('smoothing'), format: smoothingLabel, onInput: (v) => { s.set('smoothing', v); preview.paint(); } }), t('set.smoothingHint')),
+      row(t('set.corners'), toggle(s.get('smoothCorners'), (v) => { s.set('smoothCorners', v); preview.paint(); }), t('set.cornersHint')),
+    ), t('set.smoothFoot')),
     section(t('set.buttons'), buttons, t('set.buttonsHint')),
     section(t('set.test'), group(pad.el), t('set.testHint')),
     section(t('set.save'), group(
@@ -274,6 +284,7 @@ export async function showSettings(app: AppApi): Promise<void> {
   );
   await sheet({ title: t('set.title'), body, buttons: [{ label: t('set.done'), value: true, primary: true }], cancelValue: true, wide: true });
   pad.dispose();
+  watch.disconnect();
 }
 
 export async function showShortcuts(): Promise<void> {

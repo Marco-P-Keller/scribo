@@ -1,8 +1,10 @@
-import type { AnyObj, Mat, Rect, ShapeObj, TextObj } from '../core/types';
+import type { AnyObj, InkObj, Mat, Rect, ShapeObj, TextObj } from '../core/types';
 import { Emitter } from '../core/emitter';
 import type { AnnotationModel, Patch } from '../core/model';
 import { clamp, dist, rotateM, scaleM, translateM } from '../core/geometry';
 import { boundsOfAll, clone, isTransformable, recolor, rewidth, transformObj } from '../core/objects';
+import { resmooth } from '../core/ink';
+import type { SmoothOptions } from '../core/smooth';
 import { drawObjects } from '../render/draw';
 import { layoutText } from '../render/textlayout';
 import { ACCENT, accentAlpha } from '../render/accent';
@@ -428,6 +430,15 @@ export class Selection extends Emitter<SelectionEvents> {
   recolor(color: string): void {
     if (!this.active) return;
     this.model.replace('Farbe ändern', this.page!.index, this.objects().map((o) => recolor(o, color)));
+    this.draw();
+  }
+
+  /** Smooth the selected ink strokes once more (one undo step); other objects stay as they are. */
+  smooth(opts: SmoothOptions): void {
+    if (!this.active) return;
+    const ink = this.objects().filter((o): o is InkObj => o.t === 'ink');
+    if (!ink.length) return;
+    this.model.replace('Glätten', this.page!.index, ink.map((o) => resmooth(o, opts)));
     this.draw();
   }
 

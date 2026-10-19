@@ -35,8 +35,10 @@ export interface InkObj extends Base {
   p: number[];
   /** pressure was synthesised from speed (mouse / finger) */
   sim?: 1;
-  /** smoothing 0..1 chosen when the stroke was written; missing = 0.5 */
+  /** Scribo 1.3: smoothing 0..1 the nib applies when drawing; missing = 0.5 (ignored when `v` is 2) */
   sm?: number;
+  /** 2 = the points were smoothed when the stroke was written (Scribo 1.4+); the nib draws them as they are */
+  v?: 2;
 }
 
 export type ShapeKind = 'line' | 'arrow' | 'rect' | 'ellipse' | 'poly' | 'polyline';

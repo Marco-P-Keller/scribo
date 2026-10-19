@@ -1,5 +1,5 @@
 import type { AppApi } from '../app/api';
-import { HIGHLIGHT_COLORS, PEN_COLORS } from '../app/settings';
+import { HIGHLIGHT_COLORS, PEN_COLORS, settings } from '../app/settings';
 import { frame, h } from './dom';
 import { icon } from './icons';
 import type { IconName } from './icons';
@@ -10,13 +10,13 @@ import { addStrings, t } from './i18n';
 addStrings(
   {
     'sel.cut': 'Ausschneiden', 'sel.copy': 'Kopieren', 'sel.duplicate': 'Duplizieren', 'sel.delete': 'Löschen', 'sel.color': 'Farbe',
-    'sel.front': 'Nach vorne', 'sel.back': 'Nach hinten', 'sel.edit': 'Bearbeiten',
+    'sel.front': 'Nach vorne', 'sel.back': 'Nach hinten', 'sel.edit': 'Bearbeiten', 'sel.smooth': 'Striche glätten',
     'mark.hl': 'Markieren', 'mark.ul': 'Unterstreichen', 'mark.st': 'Durchstreichen',
     'page.prev': 'Vorherige Seite', 'page.next': 'Nächste Seite', 'zoom.in': 'Vergrößern', 'zoom.out': 'Verkleinern', 'zoom.fitWidth': 'Breite anpassen', 'zoom.fitPage': 'Ganze Seite',
   },
   {
     'sel.cut': 'Cut', 'sel.copy': 'Copy', 'sel.duplicate': 'Duplicate', 'sel.delete': 'Delete', 'sel.color': 'Color',
-    'sel.front': 'Bring to front', 'sel.back': 'Send to back', 'sel.edit': 'Edit',
+    'sel.front': 'Bring to front', 'sel.back': 'Send to back', 'sel.edit': 'Edit', 'sel.smooth': 'Smooth strokes',
     'mark.hl': 'Highlight', 'mark.ul': 'Underline', 'mark.st': 'Strike through',
     'page.prev': 'Previous page', 'page.next': 'Next page', 'zoom.in': 'Zoom in', 'zoom.out': 'Zoom out', 'zoom.fitWidth': 'Fit width', 'zoom.fitPage': 'Fit page',
   },
@@ -84,6 +84,14 @@ export class FloatingMenus {
           })
         : null,
       colorable ? colorBtn : null,
+      objs.some((o) => o.t === 'ink')
+        ? btn('smooth', t('sel.smooth'), () => sel.smooth({
+            // every press smooths once more; with smoothing switched off it still does something
+            strength: Math.max(0.5, settings.get('smoothing')),
+            corners: settings.get('smoothCorners'),
+            unit: 1 / this.app.viewer.scale,
+          }))
+        : null,
       btn('front', t('sel.front'), () => sel.arrange(true)),
       h('span.fl-sep'),
       btn('trash', t('sel.delete'), () => sel.delete(), 'danger'),

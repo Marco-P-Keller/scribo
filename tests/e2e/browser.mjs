@@ -77,13 +77,49 @@ ok((await objs()).join() === 'ink:', 'pen stroke is stored');
   const widths = () => page.evaluate(() => { const p = window.__scribo.session.model.pages[0].at(-1).p; return new Set(p.filter((_, i) => i % 3 === 2)).size; });
   ok((await widths()) === 1, 'by default pressure does not change the line width');
   await setting('pressureWidth', true);
-  await setting('smoothing', 0.9);
   await pen.stroke(wave(300, 520, 300));
   const last = await page.evaluate(() => window.__scribo.session.model.pages[0].at(-1));
-  ok((await widths()) > 3 && last.sm === 0.9, 'switched on, pressure changes the width; the smoothing is stored with the stroke');
+  ok((await widths()) > 3 && last.v === 2 && last.sm === undefined, 'switched on, pressure changes the width; strokes are stored already smoothed');
   await page.keyboard.press('Control+z');
   await setting('pressureWidth', false);
-  await setting('smoothing', 0.5);
+}
+{
+  // a shaky straight line: smoothing calms it, and "Smooth strokes" calms an existing stroke
+  const shaky = Array.from({ length: 90 }, (_, i) => [300 + i * 3, 560 + (i % 2 ? 1.6 : -1.6) + (i % 7 === 3 ? 1.4 : 0), 0.5]);
+  const wobble = () => page.evaluate(() => {
+    const p = window.__scribo.session.model.pages[0].at(-1).p;
+    const ys = p.filter((_, i) => i % 3 === 1).slice(3, -3);
+    const mean = ys.reduce((a, b) => a + b, 0) / ys.length;
+    return Math.max(...ys.map((y) => Math.abs(y - mean)));
+  });
+  // shape recognition would turn the line into a straight one
+  await setting('snap', 'off');
+  await setting('smoothing', 0);
+  await pen.stroke(shaky);
+  const rough = await wobble();
+  await page.keyboard.press('Control+z');
+  await setting('smoothing', 1);
+  await pen.stroke(shaky);
+  const calm = await wobble();
+  ok(calm < rough * 0.35, `smoothing calms a shaky line (${rough.toFixed(2)} → ${calm.toFixed(2)} pt)`);
+  await page.keyboard.press('Control+z');
+  await setting('smoothing', 0);
+  await pen.stroke(shaky);
+  await setting('smoothing', 0.6);
+  await page.keyboard.press('v');
+  const at = await page.evaluate(() => { const o = window.__scribo.session.model.pages[0].at(-1); return window.__scribo.viewer.realized[0].pageToClient(o.p[90], o.p[91]); });
+  await page.mouse.click(at.x, at.y);
+  await page.waitForTimeout(150);
+  const button = page.locator('.sel-menu button[aria-label="Striche glätten"]');
+  ok((await button.count()) === 1, 'selected ink offers "Smooth strokes"');
+  if (await button.count()) await button.click();
+  ok((await wobble()) < rough * 0.6, 'the button smooths the selected stroke');
+  await page.keyboard.press('Control+z');
+  ok(Math.abs((await wobble()) - rough) < 1e-6, 'undo brings the shaky stroke back');
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('p');
+  await setting('snap', 'auto');
 }
 // eraser button (code 32, without the tip bit); CDP can't send it, so use synthetic pointer events
 const synth = (kind, x, y, buttons, pressure, button = -1) => page.evaluate(([kind, x, y, buttons, pressure, button]) => {

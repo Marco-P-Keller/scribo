@@ -20,8 +20,10 @@ export interface Settings {
   pressureWidth: boolean;
   /** how much pressure changes the line width: 0 = constant, 1 = full range */
   pressureAmount: number;
-  /** stroke smoothing: 0 = follows the pen exactly, 1 = strong; 0.5 = the original tuning */
+  /** stroke smoothing: 0 = the raw pen samples, 1 = strongest (see core/smooth.ts) */
   smoothing: number;
+  /** smoothing keeps sharp corners (k, z, 4 …) sharp */
+  smoothCorners: boolean;
   snap: SnapMode;
   penButtons: { barrel: PenAction; eraser: PenAction; middle: PenAction };
   eraserMode: 'stroke' | 'point';
@@ -61,7 +63,8 @@ export const DEFAULTS: Settings = {
   sensitivity: 0.5,
   pressureWidth: false,
   pressureAmount: 0.55,
-  smoothing: 0.5,
+  smoothing: 0.6,
+  smoothCorners: true,
   snap: 'auto',
   // the eraser code (32) erases, the side button (2) selects
   penButtons: { barrel: 'lasso', eraser: 'erase', middle: 'none' },
@@ -74,7 +77,7 @@ export const DEFAULTS: Settings = {
   paper: 'lined',
   pageSize: 'same',
   pageOrient: 'p',
-  schema: 2,
+  schema: 3,
 
   tool: 'pen',
   favorites: [
@@ -128,6 +131,10 @@ class Store extends Emitter<{ change: keyof Settings }> {
       // 1.0 shipped with the side button erasing; pens send the eraser code for the eraser button
       const b = d.penButtons;
       if (b.barrel === 'erase' && b.eraser === 'lasso') d.penButtons = { ...b, barrel: 'lasso', eraser: 'erase' };
+    }
+    if ((saved.schema ?? 0) < 3 && d.smoothing === 0.5) {
+      // 1.3's untouched default; 1.4 smooths differently and is calmer by default
+      d.smoothing = DEFAULTS.smoothing;
     }
     d.schema = DEFAULTS.schema;
     return d;

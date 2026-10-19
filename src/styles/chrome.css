@@ -2019,3 +2019,7 @@ kbd {
     break-after: page;
   }
 }
+.pad.smooth-demo {
+  height: 112px;
+  cursor: default;
+}

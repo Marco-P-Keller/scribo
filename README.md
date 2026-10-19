@@ -29,7 +29,8 @@ Die Installation braucht keine Administratorrechte, Updates kommen automatisch v
 
 ## Funktionen
 
-- **Tinte** mit runden Strichenden und einstellbarer **Glättung** (schwach bis stark); der Strich erscheint live unter der Stiftspitze. Gleichmäßig breit wie ein Fineliner oder, wenn eingeschaltet, **druckempfindlich** mit einstellbarer Stärke und Empfindlichkeit (bis Füllfeder)
+- **Tinte** mit runden Strichenden; der Strich erscheint live unter der Stiftspitze. Gleichmäßig breit wie ein Fineliner oder, wenn eingeschaltet, **druckempfindlich** mit einstellbarer Stärke und Empfindlichkeit (bis Füllfeder)
+- **Glättung** von aus bis stark, mit Live-Vorschau in den *Einstellungen* und schnellem Regler im Stift-Menü: entfernt Zittern, ohne nachzuziehen (die Tinte bleibt unter der Spitze), Schleifen in e, l, a behalten ihre Form, Ecken in k, z, 4 bleiben auf Wunsch spitz, kleine Aufsetz-Haken verschwinden. Ältere Striche lassen sich nachträglich glätten: auswählen → **Striche glätten**
 - **Stift & Textmarker** mit Farbe, Stärke und Deckkraft, als **Favoriten-Leiste** (Ziehen zum Umsortieren)
 - **Automatische Formerkennung**: Kreis, Ellipse, Rechteck, Dreieck, Linie – nach kurzem Ruhen des Stifts („Halten“) oder sofort beim Absetzen („Auto“)
 - **Stifttasten**: Taste 1 (Radiertaste, Code 32) radiert ganze Linien, Taste 2 (Seitentaste, Code 2) öffnet das Lasso; frei belegbar, mit Live-Test unter *Einstellungen*, in dem die gedrückte Taste aufleuchtet

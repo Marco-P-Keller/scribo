@@ -1,12 +1,29 @@
 import { getStroke, type StrokeOptions } from 'perfect-freehand';
 import type { InkObj, Rect } from './types';
 import { boundsOfPoints } from './geometry';
+import { smoothStroke, type SmoothOptions } from './smooth';
+import { roundEnd } from './pressure';
 
 export type Outline = [number, number][];
 
+type Nib = Pick<InkObj, 'w' | 'hl' | 'sim' | 'sm' | 'v'>;
+
 /** Pen / highlighter nibs are tuned here so on-screen ink and exported PDF ink are identical. */
-export function strokeOptions(o: Pick<InkObj, 'w' | 'hl' | 'sim' | 'sm'>): StrokeOptions {
-  // the stroke's smoothing shifts the original tuning (sm 0.5) towards "exact" or "calm"
+export function strokeOptions(o: Nib): StrokeOptions {
+  if (o.v === 2) {
+    // the points were smoothed when written: the nib follows them exactly
+    return {
+      size: o.w,
+      thinning: o.hl ? 0 : o.sim ? 0.4 : 0.6,
+      smoothing: 0.5,
+      streamline: 0,
+      simulatePressure: !o.hl && !!o.sim,
+      start: { cap: true, taper: 0 },
+      end: { cap: true, taper: 0 },
+      last: true,
+    };
+  }
+  // Scribo 1.3 and older: the stroke's smoothing shifts the original tuning (sm 0.5) towards "exact" or "calm"
   const k = (o.sm ?? 0.5) - 0.5;
   if (o.hl) {
     return {
@@ -33,16 +50,48 @@ export function strokeOptions(o: Pick<InkObj, 'w' | 'hl' | 'sim' | 'sm'>): Strok
   };
 }
 
+/**
+ * perfect-freehand leaves out the last 3 units of a stroke's middle line. In page points that
+ * straightens the final millimetre (the flick of an n or a), so new strokes are outlined this
+ * many times larger and scaled back.
+ */
+const FINE = 12;
+
+/** Outline polygon of x,y,pressure triples drawn with the nib `o`. */
+export function outlineOf(p: number[], o: Nib): Outline {
+  const k = o.v === 2 ? FINE : 1;
+  const pts: number[][] = [];
+  for (let i = 0; i < p.length; i += 3) pts.push([p[i] * k, p[i + 1] * k, p[i + 2]]);
+  const opts = strokeOptions(o);
+  const out = getStroke(pts, { ...opts, size: opts.size! * k }) as Outline;
+  return k === 1 ? out : out.map(([x, y]) => [x / k, y / k]);
+}
+
 const outlineCache = new WeakMap<InkObj, Outline>();
 
 export function inkOutline(o: InkObj): Outline {
   let out = outlineCache.get(o);
-  if (out) return out;
-  const pts: number[][] = [];
-  for (let i = 0; i < o.p.length; i += 3) pts.push([o.p[i], o.p[i + 1], o.p[i + 2]]);
-  out = getStroke(pts, strokeOptions(o)) as Outline;
-  outlineCache.set(o, out);
+  if (!out) {
+    out = outlineOf(o.p, o);
+    outlineCache.set(o, out);
+  }
   return out;
+}
+
+/**
+ * Pen samples → the points a stroke stores: smoothed, the lifting tip kept round, thinned out
+ * below what the eye sees at the zoom it was written (`opts.unit` = points per CSS pixel), rounded.
+ */
+export function strokePoints(samples: number[], opts: SmoothOptions): number[] {
+  let p = samples;
+  if (p.length < 6) p = [p[0], p[1], p[2] ?? 0.5, p[0] + 0.01, p[1], p[2] ?? 0.5];
+  return roundPts(decimate(roundEnd(smoothStroke(p, opts)), Math.max(0.12, 0.45 * opts.unit)));
+}
+
+/** The stroke smoothed once more with `opts` (also turns a Scribo 1.3 stroke into a smoothed one). */
+export function resmooth(o: InkObj, opts: SmoothOptions): InkObj {
+  const { sm: _sm, ...rest } = o;
+  return { ...rest, p: strokePoints(o.p, opts), v: 2 };
 }
 
 /** Smooth closed path through the outline polygon (quadratic curves between midpoints). */
