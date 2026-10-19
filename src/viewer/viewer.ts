@@ -32,6 +32,15 @@ export interface ViewerEvents extends Record<string, unknown> {
   geometry: number;
 }
 
+export interface ViewState {
+  zoom: number;
+  fit: FitMode;
+  page: number;
+  /** css px from the top of `page` to the top of the window */
+  top: number;
+  left: number;
+}
+
 export class Viewer extends Emitter<ViewerEvents> implements PageHost {
   readonly el = document.createElement('div');
   readonly stage = document.createElement('div');
@@ -101,13 +110,18 @@ export class Viewer extends Emitter<ViewerEvents> implements PageHost {
 
   // ── session ───────────────────────────────────────────────────────────
 
-  setSession(session: DocSession, opts: { keepView?: boolean } = {}): void {
-    const keep = opts.keepView ? { page: this.current, top: this.stage.scrollTop - (this.tops[this.current] ?? 0) } : null;
-    for (const v of this.views.values()) v.destroy();
-    this.views.clear();
-    this.queue.clear();
+  /**
+   * Shows a document. `keepView` keeps zoom and position (the same document got new pages),
+   * `view` restores a position saved with viewState() (switching back to a tab).
+   */
+  setSession(session: DocSession, opts: { keepView?: boolean; view?: ViewState } = {}): void {
+    const keep = opts.view ?? (opts.keepView ? this.viewState() : null);
+    this.dropViews();
     this.session = session;
-    if (!opts.keepView) {
+    if (opts.view) {
+      this.zoom = opts.view.zoom;
+      this.fit = opts.view.fit;
+    } else if (!opts.keepView) {
       const { zoom, fit } = this.initialZoom();
       this.zoom = zoom;
       this.fit = fit;
@@ -116,12 +130,36 @@ export class Viewer extends Emitter<ViewerEvents> implements PageHost {
     if (keep) {
       const i = clamp(keep.page, 0, this.pageCount - 1);
       this.stage.scrollTop = (this.tops[i] ?? 0) + keep.top;
+      if (opts.view) this.stage.scrollLeft = opts.view.left;
     } else {
       this.stage.scrollTop = 0;
       this.centerHorizontally();
     }
     this.updateVisible();
+    // the window may have changed size while another tab was shown
+    if (opts.view && this.fit !== 'none') this.onResize();
     this.emit('zoom', { zoom: this.zoom, fit: this.fit });
+  }
+
+  /** Zoom and position of the current document, for setSession({ view }). */
+  viewState(): ViewState {
+    return { zoom: this.zoom, fit: this.fit, page: this.current, top: this.stage.scrollTop - (this.tops[this.current] ?? 0), left: this.stage.scrollLeft };
+  }
+
+  /** No document (the last tab was closed). */
+  clear(): void {
+    this.dropViews();
+    this.session = null!;
+    this.tops = [];
+    this.current = 0;
+    this.content.style.height = '0px';
+    this.addPageButton.hidden = true;
+  }
+
+  private dropViews(): void {
+    for (const v of this.views.values()) v.destroy();
+    this.views.clear();
+    this.queue.clear();
   }
 
   /** Pages are centred in the content area; start with that centre in view. */

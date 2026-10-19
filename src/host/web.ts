@@ -119,7 +119,7 @@ export function createWebHost(): Host {
 
     setDocumentState(s) {
       dirty = s.dirty;
-      document.title = `${s.dirty ? '• ' : ''}${s.name} – Scribo`;
+      document.title = s.name ? `${s.dirty ? '• ' : ''}${s.name} – Scribo` : 'Scribo';
     },
     onOpenRequest() {
       /* files arrive through drag & drop only */

@@ -29,6 +29,8 @@ protocol.registerSchemesAsPrivileged([
 /** @type {Map<number, {win: BrowserWindow, dirty: boolean, name: string, launch: string[], force: boolean}>} */
 const windows = new Map();
 const pendingPaths = [];
+/** @type {BrowserWindow | null} the window that had the focus last (Explorer has it while a file is double-clicked) */
+let lastFocused = null;
 
 const stateFile = () => join(app.getPath('userData'), 'window-state.json');
 function loadBounds() {
@@ -114,7 +116,11 @@ function createWindow(paths = []) {
       send('close-requested');
     }
   });
-  win.on('closed', () => windows.delete(wcId));
+  win.on('focus', () => (lastFocused = win));
+  win.on('closed', () => {
+    windows.delete(wcId);
+    if (lastFocused === win) lastFocused = null;
+  });
   win.webContents.on('render-process-gone', () => {
     if (!win.isDestroyed()) win.reload();
   });
@@ -129,19 +135,19 @@ function createWindow(paths = []) {
   return win;
 }
 
-/** Windows without a document take the file; otherwise a new window opens. */
+/** Files opened from outside become tabs in the window used last; a window opens only if there is none. */
 function openPaths(paths) {
   const list = paths.filter((p) => extname(p).toLowerCase() === '.pdf' && existsSync(p));
   if (!list.length) return;
-  const focus = BrowserWindow.getFocusedWindow();
-  const free = [...windows.values()].find((w) => !w.name && w.win === focus) ?? [...windows.values()].find((w) => !w.name);
-  const [first, ...rest] = list;
-  if (free) {
-    free.win.webContents.send('open-paths', [first]);
-    if (free.win.isMinimized()) free.win.restore();
-    free.win.focus();
-  } else createWindow([first]);
-  for (const p of rest) createWindow([p]);
+  const live = (w) => w && !w.isDestroyed() && !w.webContents.isDestroyed();
+  const target = [BrowserWindow.getFocusedWindow(), lastFocused, ...[...windows.values()].map((r) => r.win)].find(live);
+  if (!target) {
+    createWindow(list);
+    return;
+  }
+  target.webContents.send('open-paths', list);
+  if (target.isMinimized()) target.restore();
+  target.focus();
 }
 
 function pathsFromArgv(argv) {
@@ -176,8 +182,7 @@ if (!TEST && !app.requestSingleInstanceLock()) {
     buildMenu();
     const initial = [...pendingPaths, ...pathsFromArgv(process.argv).map((p) => resolve(p))];
     if (process.env.SCRIBO_OPEN) initial.push(process.env.SCRIBO_OPEN);
-    if (initial.length) for (const p of initial) createWindow([p]);
-    else createWindow();
+    createWindow(initial);
     app.on('activate', () => {
       if (!BrowserWindow.getAllWindows().length) createWindow();
     });
@@ -379,10 +384,11 @@ function buildMenu() {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       { role: 'appMenu' },
-      { label: 'Datei', submenu: [{ role: 'close' }] },
+      // Cmd+W closes the current tab (handled by the page), Cmd+Shift+W the window
+      { label: 'Datei', submenu: [{ role: 'close', accelerator: 'CmdOrCtrl+Shift+W' }] },
       { role: 'editMenu' },
       { role: 'viewMenu' },
-      { role: 'windowMenu' },
+      { label: 'Fenster', submenu: [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }] },
     ]),
   );
 }

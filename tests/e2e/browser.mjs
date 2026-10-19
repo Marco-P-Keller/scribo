@@ -298,7 +298,6 @@ await page.evaluate(() => window.__scribo.viewer.setZoom(1));
 }
 
 // ── new notebook ────────────────────────────────────────────────────────────
-page.once('dialog', (d) => d.accept());
 await page.evaluate(() => window.__scribo.newNotebook());
 await page.waitForSelector('.paper-picker');
 ok((await page.locator('.page-setup .seg', { hasText: 'Wie Seite' }).count()) === 0, 'a new notebook offers no "same size"');
@@ -346,6 +345,67 @@ const back = await page.evaluate(async () => {
   return s2.model.pages[0].map((o) => o.t).join(',');
 });
 ok(back === 'ink', `save + reopen keeps the stroke editable (${back})`);
+
+// ── tabs ────────────────────────────────────────────────────────────────────
+{
+  const state = () => page.evaluate(() => {
+    const a = window.__scribo;
+    return { n: a.tabs.length, cur: a.tabs.indexOf(a.session), name: a.session?.file.name ?? null, objs: a.session ? a.session.model.pages[0].length : -1 };
+  });
+  let st = await state();
+  ok(st.n === 4 && st.cur === 3 && (await page.locator('.tabbar').isVisible()) && (await page.locator('.tab').count()) === 4, `every opened document gets its own tab (${st.n} tabs)`);
+  await page.locator('.tab').nth(0).click();
+  st = await state();
+  ok(st.name === 'Vorlesung.pdf' && st.objs >= 6, `clicking a tab shows that document with its annotations (${st.name}, ${st.objs})`);
+  await page.evaluate(() => { const v = window.__scribo.viewer; v.setZoom(2); v.scrollToPage(2); });
+  await page.waitForTimeout(200);
+  const view = () => page.evaluate(() => { const v = window.__scribo.viewer; return { zoom: v.zoom, page: v.currentPage, top: v.stage.scrollTop }; });
+  const before = await view();
+  await page.keyboard.press('Control+Tab');
+  ok((await state()).cur === 1, 'Ctrl+Tab shows the next tab');
+  await page.keyboard.press('Control+Shift+Tab');
+  await page.waitForTimeout(200);
+  const after = await view();
+  ok((await state()).cur === 0 && after.zoom === before.zoom && after.page === before.page && Math.abs(after.top - before.top) < 2, `a tab keeps its zoom and position (${JSON.stringify(before)} → ${JSON.stringify(after)})`);
+  // the pen writes into the document of the shown tab only
+  await page.locator('.tab').nth(3).click();
+  await page.waitForTimeout(300);
+  const counts = () => page.evaluate(() => window.__scribo.tabs.map((s) => s.model.pages.flat().length));
+  const c0 = await counts();
+  await page.keyboard.press('p');
+  await pen.stroke(wave(300, 520, 300));
+  const c1 = await counts();
+  ok(c1[3] === c0[3] + 1 && c1.slice(0, 3).join() === c0.slice(0, 3).join(), `ink lands in the shown tab only (${c0} → ${c1})`);
+  ok(await page.locator('.tab').nth(3).evaluate((el) => el.classList.contains('dirty')), 'a tab with unsaved changes shows a dot');
+  // closing an unsaved tab asks first
+  page.once('dialog', (d) => d.dismiss());
+  await page.locator('.tab').nth(1).hover();
+  await page.locator('.tab').nth(1).locator('.tab-close').click();
+  await page.waitForTimeout(200);
+  st = await state();
+  ok(st.n === 4 && st.cur === 3, 'closing an unsaved tab can be cancelled');
+  page.once('dialog', (d) => d.accept());
+  await page.locator('.tab').nth(1).hover();
+  await page.locator('.tab').nth(1).locator('.tab-close').click();
+  await page.waitForTimeout(200);
+  st = await state();
+  ok(st.n === 3 && st.cur === 2 && st.name === 'Vorlesung.pdf', `the closed tab is gone and the tab you were on is shown again (${st.n}, ${st.cur}, ${st.name})`);
+  const accept = (d) => d.accept();
+  page.on('dialog', accept);
+  await page.locator('.tab').nth(0).click({ button: 'middle' });
+  await page.waitForTimeout(200);
+  ok((await state()).n === 2, 'a middle click closes a tab');
+  await page.keyboard.press('Control+w');
+  await page.waitForTimeout(200);
+  ok((await state()).n === 1 && !(await page.locator('.tabbar').isVisible()), 'Ctrl+W closes the tab; with one document the tab bar hides');
+  await page.keyboard.press('Control+w');
+  await page.waitForTimeout(300);
+  st = await state();
+  ok(st.n === 0 && st.name === null && (await page.locator('.welcome.show').count()) === 1 && (await page.title()) === 'Scribo', 'closing the last tab shows the start screen');
+  page.off('dialog', accept);
+  await openDoc(page, fixture());
+  ok((await state()).n === 1 && (await objs()).length === 0, 'a document opens again after all tabs were closed');
+}
 
 // ── ink lands under the pen in every view state (Windows-like 150 % display scaling) ──
 {

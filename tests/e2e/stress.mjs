@@ -1,5 +1,6 @@
 // Randomised stress test of the production build: hundreds of pen strokes, button erasing / lasso,
-// selection drags, zoom, scrolling, page operations, undo / redo. Fails on any page error, on a
+// selection drags, zoom, scrolling, page operations, undo / redo, switching tabs (also while a page
+// operation runs), opening and closing tabs. Fails on any page error, on a
 // stuck input / render state, and if undo-all, redo and a save roundtrip don't give back the same document.
 // Usage: npm run test:stress -- <seed> <actions>   (TRACE=n prints the history for the last n actions)
 import { chromium } from 'playwright';
@@ -28,6 +29,9 @@ page.on('dialog', (d) => d.accept());
 await page.goto(`http://127.0.0.1:${server.address().port}/?e2e=1`);
 await page.waitForFunction(() => window.__scribo);
 await openDoc(page, fixture());
+// a second tab to switch to; the checks at the end run on the first one
+await openDoc(page, fixture(), 'B.pdf');
+await page.evaluate(() => window.__scribo.activate(window.__scribo.tabs[0]));
 await page.waitForTimeout(500);
 const pen = new Pen(await ctx.newCDPSession(page));
 const snap = () => page.evaluate(() => JSON.stringify({ n: window.__scribo.session.pageCount, p: window.__scribo.session.model.pages }));
@@ -51,6 +55,9 @@ const actions = {
   async escape() { await page.keyboard.press('Escape'); },
   async addPage() { await page.evaluate(() => window.__scribo.viewer.addPageButton.click()); await page.waitForSelector('.page-setup'); await page.keyboard.press('Enter'); await page.waitForTimeout(400); },
   async rotatePage() { await page.evaluate(() => window.__scribo.applyPageOps('r', [{ op: 'rotate', pages: [window.__scribo.viewer.currentPage], delta: 90 }])); await page.waitForTimeout(400); },
+  async switchTab() { await page.keyboard.press('Control+Tab'); },
+  async opSwitch() { await page.evaluate(() => void window.__scribo.applyPageOps('r', [{ op: 'rotate', pages: [window.__scribo.viewer.currentPage], delta: 90 }])); await page.keyboard.press('Control+Tab'); await page.waitForTimeout(400); },
+  async openClose() { await page.evaluate(async (b64) => { const bin = atob(b64); const data = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i); await window.__scribo.openFile({ name: 'C.pdf', data }); }, fixture()); await page.waitForTimeout(100); await page.keyboard.press('Control+w'); await page.waitForTimeout(200); },
   async mouseDraw() { const [x, y] = P(); await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 60, y + 30, { steps: 4 }); await page.mouse.up(); },
 };
 const names = Object.keys(actions);
@@ -67,7 +74,10 @@ for (let i = 0; i < N; i++) {
   if (errors.length) break;
 }
 await page.waitForTimeout(500);
-await page.evaluate(() => window.__scribo.session.model.serial(async () => undefined));
+const tabs = await page.evaluate(() => window.__scribo.tabs.map((s) => s.file.name).join());
+if (tabs !== 'Vorlesung.pdf,B.pdf') errors.push(`unexpected tabs at the end: ${tabs}`);
+await page.evaluate(() => window.__scribo.activate(window.__scribo.tabs[0]));
+await page.evaluate(() => Promise.all(window.__scribo.tabs.map((s) => s.model.serial(async () => undefined))));
 const busy = await page.evaluate(() => window.__scribo.editor.controller.busy || window.__scribo.viewer.paused);
 if (busy) errors.push('controller still busy / rendering paused after all actions');
 // undo everything, compare with start; redo everything

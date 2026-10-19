@@ -1,13 +1,12 @@
-## Scribo 1.2.1 – Gemischte PDFs passen ins Fenster
+## Scribo 1.3 – Tabs, Glättung und Seiten nach Wahl
 
-**Behoben**
-- **Breite anpassen** und **Ganze Seite** richten sich jetzt nach der breitesten bzw. größten Seite des Dokuments. In PDFs, die Hochformat-Seiten und breite Folien mischen, ragen die Folien nicht mehr über den Fensterrand hinaus.
-- Der Zoom hängt nicht mehr davon ab, auf welcher Seite du gerade bist: „Breite anpassen“ ergibt überall dasselbe Bild, auch beim Ändern der Fenstergröße.
-- Gemischte Dokumente öffnen so, dass jede Seite ganz sichtbar ist.
+**Neu**
+- **Tabs:** Mehrere PDFs im selben Fenster. Jedes Dokument öffnet als eigener Tab und behält Zoom und Position. **Strg+Tab** / **Strg+Umschalt+Tab** wechselt, **Strg+W** oder Mittelklick schließt einen Tab, Tabs lassen sich per Ziehen umsortieren. Ein Punkt im Tab zeigt ungespeicherte Änderungen; beim Schließen fragt Scribo nach. PDFs, die du im Explorer öffnest, landen als neuer Tab im zuletzt benutzten Fenster.
+- **Glättung beim Schreiben:** Neuer Regler in den Einstellungen, von schwach (die Linie folgt jeder Bewegung) bis stark (ruhige, runde Linien). Die Glättung wird mit jedem Strich gespeichert, das PDF sieht genau so aus wie der Bildschirm.
+- **Seite hinzufügen mit Auswahl:** „Seite hinzufügen“, „Seite einfügen“ und „Neues Notizbuch“ fragen nach Papier (leere Seite, Notizpapier, Blockpapier, Punktraster), Grösse (wie die Seite davor, A3, A4, A5, A6, Letter) und Hoch- oder Querformat. Die letzte Wahl wird gemerkt.
 
-Hinweis: In gemischten Dokumenten erscheinen Hochformat-Seiten dadurch etwas schmaler als zuvor. Mit Strg + / Strg − zoomst du wie gewohnt.
-
-Dazu das neue Design aus 1.2: Stifte in der Ablage, neues Icon, ruhigere Oberfläche.
+**Geändert**
+- **Einfluss des Drucks auf die Strichbreite** ist jetzt ein Schalter und standardmäßig **aus**: Jede Linie ist gleich breit wie mit einem Fineliner. Eingeschaltet funktioniert alles wie bisher, mit „Stärke des Einflusses“ und „Druckempfindlichkeit“.
 
 **Installation:** `Scribo-Setup-x64.exe` (Intel/AMD) oder `Scribo-Setup-arm64.exe` (ARM) ausführen. Ohne Installation: `Scribo-Portable-x64.exe`. Installierte Versionen aktualisieren sich automatisch.
 
@@ -15,4 +14,4 @@ Dazu das neue Design aus 1.2: Stifte in der Ablage, neues Icon, ruhigere Oberfl�
 
 ---
 
-**English:** Scribo 1.2.1 makes *Fit width* and *Fit page* use the widest / largest page, so landscape slides in a mixed PDF no longer stick out of the window, and the zoom no longer depends on which page is current. Portrait pages in mixed documents appear somewhat narrower as a result. Windows may show a SmartScreen warning because the app is not code-signed yet: *More info → Run anyway*.
+**English:** Scribo 1.3 opens several PDFs as **tabs** in one window (Ctrl+Tab to switch, Ctrl+W or middle click to close, drag to reorder; files opened from Explorer become a new tab). New **smoothing** slider (weak to strong). Adding a page or a notebook now asks for **paper, size (A3–A6, Letter or same as the page before) and orientation**. **Pressure changing the line width is now optional and off by default**; switch it on in Settings for the previous behaviour. Windows may show a SmartScreen warning because the app is not code-signed yet: *More info → Run anyway*.

@@ -127,6 +127,8 @@ export class DocSession extends Emitter<SessionEvents> {
   ocConfig!: Promise<OcConfig>;
   /** layer was present in the file as it was opened (so a re-save keeps it editable) */
   hadEditableLayer = false;
+  /** the PDF is being replaced (page operation, its undo or redo) */
+  swapping = false;
   /** bumped whenever the underlying PDF is replaced (page operations, undo of them) */
   private version = 0;
 
@@ -229,6 +231,7 @@ export class DocSession extends Emitter<SessionEvents> {
 
   private async restore(state: State): Promise<void> {
     const old = this.pdf;
+    this.swapping = true;
     this.emit('swapping', undefined);
     try {
       const pdf = await loadPdf(state.bytes, this.password);
@@ -239,6 +242,7 @@ export class DocSession extends Emitter<SessionEvents> {
       void old.loadingTask.destroy();
       this.emit('structure', undefined);
     } finally {
+      this.swapping = false;
       this.emit('swapped', undefined);
     }
   }

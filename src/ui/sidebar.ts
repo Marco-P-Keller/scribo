@@ -92,24 +92,33 @@ export class Sidebar {
   }
 
   setSession(session: DocSession | null): void {
+    for (const off of this.unbind) off();
+    this.unbind = [];
     this.session = session;
     this.selected.clear();
+    this.dirtyThumbs.clear();
+    clearTimeout(this.refreshTimer);
     this.search.setSession(session);
     this.searchInput.value = '';
     if (session) {
-      session.model.on('change', ({ pages }) => {
-        for (const p of pages) this.dirtyThumbs.add(p);
-        clearTimeout(this.refreshTimer);
-        this.refreshTimer = window.setTimeout(() => this.refreshDirty(), 350);
-        if (settings.get('sidebarTab') === 'notes' && this.visible) this.renderNotes();
-      });
-      session.on('structure', () => {
-        this.search.invalidate();
-        this.renderTab();
-      });
+      this.unbind.push(
+        session.model.on('change', ({ pages }) => {
+          for (const p of pages) this.dirtyThumbs.add(p);
+          clearTimeout(this.refreshTimer);
+          this.refreshTimer = window.setTimeout(() => this.refreshDirty(), 350);
+          if (settings.get('sidebarTab') === 'notes' && this.visible) this.renderNotes();
+        }),
+        session.on('structure', () => {
+          this.search.invalidate();
+          this.renderTab();
+        }),
+      );
     }
     this.renderTab();
   }
+
+  /** listeners on the shown document, removed when another tab is shown */
+  private unbind: (() => void)[] = [];
 
   private sync(): void {
     const open = settings.get('sidebar');

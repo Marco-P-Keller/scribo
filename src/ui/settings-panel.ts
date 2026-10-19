@@ -32,7 +32,7 @@ addStrings(
     'set.about': 'Über Scribo', 'set.version': 'Version {v}', 'set.privacy': 'Läuft vollständig offline. Es werden keine Daten gesendet.',
     'btn.contact': 'Seitentaste', 'btn.eraser': 'Radierertaste', 'btn.middle': 'Mitteltaste',
     'sc.title': 'Tastenkürzel', 'sc.file': 'Datei', 'sc.edit': 'Bearbeiten', 'sc.tools': 'Werkzeuge', 'sc.view': 'Ansicht',
-    'sc.open': 'Öffnen', 'sc.save': 'Speichern', 'sc.saveAs': 'Speichern unter', 'sc.print': 'Drucken', 'sc.new': 'Neues Fenster', 'sc.close': 'Fenster schließen',
+    'sc.open': 'Öffnen', 'sc.save': 'Speichern', 'sc.saveAs': 'Speichern unter', 'sc.print': 'Drucken', 'sc.new': 'Neues Fenster', 'sc.close': 'Tab schließen', 'sc.tabs': 'Nächster / vorheriger Tab',
     'sc.undo': 'Rückgängig', 'sc.redo': 'Wiederholen', 'sc.copy': 'Kopieren / Ausschneiden / Einfügen', 'sc.dup': 'Duplizieren', 'sc.del': 'Auswahl löschen', 'sc.all': 'Alles auswählen', 'sc.nudge': 'Auswahl verschieben (Shift: 10×)',
     'sc.tools.v': 'Auswahl', 'sc.tools.p': 'Stift', 'sc.tools.h': 'Textmarker', 'sc.tools.e': 'Radierer', 'sc.tools.l': 'Lasso', 'sc.tools.t': 'Text', 'sc.tools.s': 'Formen', 'sc.tools.n': 'Notiz',
     'sc.zoom': 'Zoom', 'sc.fit': 'Breite anpassen / 100 % / Ganze Seite', 'sc.find': 'Suchen', 'sc.sidebar': 'Seitenleiste', 'sc.pan': 'Verschieben', 'sc.full': 'Vollbild',
@@ -57,7 +57,7 @@ addStrings(
     'set.about': 'About Scribo', 'set.version': 'Version {v}', 'set.privacy': 'Runs fully offline. No data is sent anywhere.',
     'btn.contact': 'Side button', 'btn.eraser': 'Eraser button', 'btn.middle': 'Middle button',
     'sc.title': 'Keyboard shortcuts', 'sc.file': 'File', 'sc.edit': 'Edit', 'sc.tools': 'Tools', 'sc.view': 'View',
-    'sc.open': 'Open', 'sc.save': 'Save', 'sc.saveAs': 'Save as', 'sc.print': 'Print', 'sc.new': 'New window', 'sc.close': 'Close window',
+    'sc.open': 'Open', 'sc.save': 'Save', 'sc.saveAs': 'Save as', 'sc.print': 'Print', 'sc.new': 'New window', 'sc.close': 'Close tab', 'sc.tabs': 'Next / previous tab',
     'sc.undo': 'Undo', 'sc.redo': 'Redo', 'sc.copy': 'Copy / cut / paste', 'sc.dup': 'Duplicate', 'sc.del': 'Delete selection', 'sc.all': 'Select all', 'sc.nudge': 'Nudge selection (Shift: 10×)',
     'sc.tools.v': 'Select', 'sc.tools.p': 'Pen', 'sc.tools.h': 'Highlighter', 'sc.tools.e': 'Eraser', 'sc.tools.l': 'Lasso', 'sc.tools.t': 'Text', 'sc.tools.s': 'Shapes', 'sc.tools.n': 'Note',
     'sc.zoom': 'Zoom', 'sc.fit': 'Fit width / 100 % / Fit page', 'sc.find': 'Find', 'sc.sidebar': 'Sidebar', 'sc.pan': 'Pan', 'sc.full': 'Full screen',
@@ -282,7 +282,7 @@ export async function showShortcuts(): Promise<void> {
   const group = (title: string, rows: [string, string][]) =>
     h('section', null, h('h3', null, title), h('dl.keys', null, rows.map(([k, d]) => [h('dt', null, h('kbd', null, k)), h('dd', null, d)]).flat()));
   const body = h('div.shortcuts', null,
-    group(t('sc.file'), [[`${c}+O`, t('sc.open')], [`${c}+S`, t('sc.save')], [`${c}+⇧+S`, t('sc.saveAs')], [`${c}+P`, t('sc.print')], [`${c}+N`, t('sc.new')], [`${c}+W`, t('sc.close')]]),
+    group(t('sc.file'), [[`${c}+O`, t('sc.open')], [`${c}+S`, t('sc.save')], [`${c}+⇧+S`, t('sc.saveAs')], [`${c}+P`, t('sc.print')], [`${c}+N`, t('sc.new')], [`${c}+W`, t('sc.close')], [`${c}+Tab / ${c}+⇧+Tab`, t('sc.tabs')]]),
     group(t('sc.edit'), [[`${c}+Z`, t('sc.undo')], [`${c}+Y`, t('sc.redo')], [`${c}+C / X / V`, t('sc.copy')], [`${c}+D`, t('sc.dup')], ['Entf', t('sc.del')], [`${c}+A`, t('sc.all')], ['← ↑ → ↓', t('sc.nudge')]]),
     group(t('sc.tools'), (['v', 'p', 'h', 'e', 'l', 't', 's', 'n'] as const).map((k) => [k.toUpperCase(), t(`sc.tools.${k}`)] as [string, string])),
     group(t('sc.view'), [[`${c}+ / ${c}−`, t('sc.zoom')], [`${c}+0 / 1 / 2`, t('sc.fit')], [`${c}+F`, t('sc.find')], [`${c}+B`, t('sc.sidebar')], ['Space', t('sc.pan')], ['F11', t('sc.full')]]),

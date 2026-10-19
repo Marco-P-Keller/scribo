@@ -102,15 +102,21 @@ export class Editor extends Emitter<EditorEvents> implements EditorApi {
 
   // ── session binding ───────────────────────────────────────────────────
 
-  attach(session: DocSession): void {
+  attach(session: DocSession | null): void {
     this.textEditor.close(false);
     this.controller.cancelActive();
-    this.session = session;
     this.selection?.clear();
+    this.unbind?.();
+    this.unbind = null;
+    this.session = session;
+    if (!session) return;
     this.selection = new Selection(session.model, this.viewer);
     this.selection.on('change', () => this.emit('selection', undefined));
-    session.model.on('change', () => this.selection.refresh());
+    this.unbind = session.model.on('change', () => this.selection.refresh());
   }
+
+  /** removes the listener on the previous document's model */
+  private unbind: (() => void) | null = null;
 
   get model(): AnnotationModel {
     return this.session!.model;

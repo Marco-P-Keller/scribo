@@ -1,4 +1,5 @@
 import { Viewer } from '../viewer/viewer';
+import type { ViewState } from '../viewer/viewer';
 import { pdfjsLib, PasswordRequired } from '../viewer/pdfjs';
 import { DocSession } from './session';
 import type { FileRef } from './session';
@@ -25,6 +26,7 @@ import { h } from '../ui/dom';
 import { segmented } from '../ui/popover';
 import { pageSetup } from '../ui/paper';
 import { icon } from '../ui/icons';
+import { TabBar } from '../ui/tabs';
 import { createBlankPdf } from '../pdf/client';
 import { addStrings, lang, setLang, t } from '../ui/i18n';
 
@@ -58,14 +60,20 @@ export class App implements AppApi {
   readonly editor: Editor;
   /** exposed for end-to-end tests */
   readonly settings = settings;
+  /** the document shown; one of `tabs` */
   session: DocSession | null = null;
+  /** open documents in tab order */
+  readonly tabs: DocSession[] = [];
 
   private toolbar: Toolbar;
+  private tabBar: TabBar<DocSession>;
+  /** zoom and position of the tabs in the background */
+  private views = new Map<DocSession, ViewState>();
   private sidebar: Sidebar;
   private welcome: Welcome;
   private pill: PageIndicator;
-  private autosaveTimer = 0;
-  private saving = false;
+  private autosaveTimers = new Map<DocSession, number>();
+  private saving = new Set<DocSession>();
   private opening = false;
   private updatePill = h('button.update-pill', { onclick: () => this.host.installUpdate?.() });
 
@@ -81,9 +89,19 @@ export class App implements AppApi {
     this.welcome = new Welcome(this, (r) => void this.openRecent(r));
     this.pill = new PageIndicator(this);
     new FloatingMenus(this);
+    this.tabBar = new TabBar<DocSession>({
+      select: (s) => this.activate(s),
+      close: (s) => void this.closeTab(s),
+      open: () => this.openDialog(),
+      move: (from, to) => {
+        const [s] = this.tabs.splice(from, 1);
+        this.tabs.splice(to, 0, s);
+        this.renderTabs();
+      },
+    });
 
     const main = h('main.main', null, this.viewer.el, this.welcome.el, this.pill.el);
-    root.append(h('div.window', null, this.toolbar.el, h('div.body', null, this.sidebar.el, main)), this.updatePill);
+    root.append(h('div.window', null, this.toolbar.el, this.tabBar.el, h('div.body', null, this.sidebar.el, main)), this.updatePill);
     this.welcome.show(true);
     this.layoutChrome();
 
@@ -100,10 +118,12 @@ export class App implements AppApi {
     await loadFonts();
     const launch = await this.host.launchPaths?.();
     if (launch?.length && this.host.readFromPath) {
-      try {
-        await this.openFile(await this.host.readFromPath(launch[0]));
-      } catch {
-        this.toast(t('app.openFailed'), 'error');
+      for (const p of launch) {
+        try {
+          await this.openFile(await this.host.readFromPath(p));
+        } catch {
+          this.toast(t('app.openFailed'), 'error');
+        }
       }
     }
   }
@@ -121,7 +141,7 @@ export class App implements AppApi {
         this.toolbar.setDocument(this.session ? this.session.title : null);
         this.refreshAddPage();
       }
-      if (k === 'autosave' && !settings.get('autosave')) clearTimeout(this.autosaveTimer);
+      if (k === 'autosave' && !settings.get('autosave')) for (const id of this.autosaveTimers.values()) clearTimeout(id);
     });
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => this.applyTheme());
 
@@ -166,7 +186,7 @@ export class App implements AppApi {
     });
 
     this.host.onOpenRequest((files) => void this.openFiles(files));
-    this.host.onCloseRequest(() => this.confirmClose());
+    this.host.onCloseRequest(() => this.confirmCloseAll());
     this.host.onUpdate?.((u) => {
       if (u.state === 'downloaded') {
         this.updatePill.textContent = t('app.updateReady');
@@ -225,6 +245,9 @@ export class App implements AppApi {
         case 'p': return handled(() => void this.print());
         case 'n': return handled(() => this.newWindow());
         case 'w': return handled(() => this.close());
+        case 'tab': if (this.tabs.length > 1) return handled(() => this.cycleTab(e.shiftKey ? -1 : 1)); break;
+        case 'pagedown': if (this.tabs.length > 1) return handled(() => this.cycleTab(1)); break;
+        case 'pageup': if (this.tabs.length > 1) return handled(() => this.cycleTab(-1)); break;
         case ',': return handled(() => this.showSettings());
         case '/': return handled(() => this.showShortcuts());
         case 'f': if (this.session) return handled(() => this.toggleSidebar('search')); break;
@@ -275,20 +298,9 @@ export class App implements AppApi {
     }
   }
 
+  /** Every file opens in its own tab. */
   async openFiles(files: HostFile[]): Promise<void> {
-    for (const f of files) {
-      if (this.session && this.host.newWindow && f.path) {
-        this.host.newWindow(f.path);
-        continue;
-      }
-      if (this.session && !(await this.confirmReplace())) return;
-      await this.openFile(f);
-    }
-  }
-
-  private async confirmReplace(): Promise<boolean> {
-    if (!this.session?.model.dirty) return true;
-    return this.confirmClose();
+    for (const f of files) await this.openFile(f);
   }
 
   private async onDrop(files: File[]): Promise<void> {
@@ -312,6 +324,12 @@ export class App implements AppApi {
   }
 
   async openFile(file: HostFile): Promise<void> {
+    // a file that is already open: show its tab instead of opening it twice
+    const open = file.path ? this.tabs.find((s) => s.file.path === file.path) : undefined;
+    if (open) {
+      this.activate(open);
+      return;
+    }
     if (this.opening) return;
     this.opening = true;
     try {
@@ -329,7 +347,7 @@ export class App implements AppApi {
         }
       }
       if (!session) return;
-      this.attach(session);
+      this.addTab(session);
       void this.remember(session, file);
     } catch (e) {
       console.error(e);
@@ -339,31 +357,102 @@ export class App implements AppApi {
     }
   }
 
-  private attach(session: DocSession): void {
-    const old = this.session;
-    this.session = session;
-    this.editor.attach(session);
-    this.viewer.setSession(session);
-    this.sidebar.setSession(session);
-    this.toolbar.setDocument(session.title);
-    this.welcome.show(false);
-    this.refreshAddPage();
-    session.model.on('change', ({ pages }) => this.viewer.invalidate(pages));
-    session.model.on('history', () => this.onHistory());
-    session.on('swapping', () => this.viewer.setPaused(true, 'swap'));
-    session.on('swapped', () => this.viewer.setPaused(false, 'swap'));
+  /** A newly opened document: a tab right after the current one. */
+  private addTab(session: DocSession): void {
+    const at = this.session ? this.tabs.indexOf(this.session) + 1 : this.tabs.length;
+    this.tabs.splice(at, 0, session);
+    const shown = () => this.session === session;
+    session.model.on('change', ({ pages }) => {
+      if (shown()) this.viewer.invalidate(pages);
+    });
+    session.model.on('history', () => this.onHistory(session));
+    session.on('swapping', () => {
+      if (shown()) this.viewer.setPaused(true, 'swap');
+    });
+    session.on('swapped', () => {
+      if (shown()) this.viewer.setPaused(false, 'swap');
+    });
     session.on('structure', () => {
+      if (!shown()) return;
       // the page views are rebuilt: end any stroke or drag that runs on the old ones
       this.editor.controller.cancelActive();
       this.editor.selection.clear();
       this.viewer.setSession(session, { keepView: true });
-      this.onHistory();
+      this.onHistory(session);
     });
-    session.on('file', () => this.onHistory());
-    this.onHistory();
-    this.pill.refresh();
-    old?.destroy();
+    session.on('file', () => this.onHistory(session));
+    this.activate(session);
     this.restoreView(session);
+  }
+
+  /** Shows a tab; the one in the background keeps its zoom and position. */
+  activate(session: DocSession): void {
+    if (this.session === session || !this.tabs.includes(session)) return;
+    const old = this.session;
+    if (old) this.views.set(old, this.viewer.viewState());
+    this.session = session;
+    this.editor.attach(session);
+    this.viewer.setPaused(session.swapping, 'swap');
+    const view = this.views.get(session);
+    this.viewer.setSession(session, view ? { view } : {});
+    this.sidebar.setSession(session);
+    this.toolbar.setDocument(session.title);
+    this.welcome.show(false);
+    this.refreshAddPage();
+    this.onHistory(session);
+    this.pill.refresh();
+  }
+
+  private cycleTab(dir: 1 | -1): void {
+    const n = this.tabs.length;
+    const i = this.session ? this.tabs.indexOf(this.session) : 0;
+    this.activate(this.tabs[(i + dir + n) % n]);
+  }
+
+  /** Closes a tab after asking about unsaved changes; the last one leaves the start screen. */
+  async closeTab(session: DocSession): Promise<void> {
+    // a tab closed in the background is shown only while asking; afterwards the user's tab returns
+    const was = this.session !== session ? this.session : null;
+    if (!(await this.confirmDiscard(session))) {
+      if (was && this.tabs.includes(was)) this.activate(was);
+      return;
+    }
+    const i = this.tabs.indexOf(session);
+    if (i < 0) return;
+    this.tabs.splice(i, 1);
+    this.views.delete(session);
+    clearTimeout(this.autosaveTimers.get(session));
+    this.autosaveTimers.delete(session);
+    if (this.session === session) {
+      this.session = null;
+      const next = was && this.tabs.includes(was) ? was : (this.tabs[i] ?? this.tabs[i - 1]);
+      if (next) this.activate(next);
+      else this.showStart();
+    }
+    session.destroy();
+    this.renderTabs();
+    this.publishState();
+  }
+
+  private showStart(): void {
+    this.session = null;
+    this.editor.attach(null);
+    this.viewer.setPaused(false, 'swap');
+    this.viewer.clear();
+    this.sidebar.setSession(null);
+    this.toolbar.setDocument(null);
+    this.welcome.show(true);
+    this.refreshAddPage();
+    this.pill.refresh();
+  }
+
+  private renderTabs(): void {
+    this.tabBar.render(this.tabs.map((s) => ({ key: s, title: s.title, dirty: s.model.dirty })), this.session);
+  }
+
+  /** Window title shows the current document; closing the window asks while any tab is unsaved. */
+  private publishState(): void {
+    this.host.setDocumentState({ name: this.session?.file.name ?? '', dirty: this.tabs.some((s) => s.model.dirty) });
   }
 
   private viewKey(): string | null {
@@ -423,29 +512,31 @@ export class App implements AppApi {
 
   // ── history / dirty ───────────────────────────────────────────────────
 
-  private onHistory(): void {
-    const s = this.session;
+  private onHistory(s: DocSession | null = this.session): void {
     if (!s) return;
     const dirty = s.model.dirty;
-    this.toolbar.refreshState(dirty);
-    this.host.setDocumentState({ name: s.file.name, dirty });
-    clearTimeout(this.autosaveTimer);
+    if (s === this.session) this.toolbar.refreshState(dirty);
+    this.publishState();
+    this.renderTabs();
+    clearTimeout(this.autosaveTimers.get(s));
     if (dirty && settings.get('autosave') && (s.file.path || s.file.handle)) {
-      this.autosaveTimer = window.setTimeout(() => void this.save(true), 10_000);
+      this.autosaveTimers.set(s, window.setTimeout(() => void this.save(true, s), 10_000));
     }
   }
 
   // ── saving ────────────────────────────────────────────────────────────
 
-  async save(silent = false): Promise<void> {
-    const s = this.session;
-    if (!s || this.saving) return;
-    if (!s.file.path && !s.file.handle) return this.saveAs();
+  async save(silent = false, s = this.session): Promise<void> {
+    if (!s || this.saving.has(s)) return;
+    if (!s.file.path && !s.file.handle) {
+      if (s === this.session) await this.saveAs();
+      return;
+    }
     if (!s.model.dirty) {
       if (!silent) this.toast(t('app.saved'), 'info', 1000);
       return;
     }
-    this.saving = true;
+    this.saving.add(s);
     try {
       if (!silent) this.toast(t('app.saving'), 'info', 900);
       const built = await s.buildForSave();
@@ -465,7 +556,7 @@ export class App implements AppApi {
     } catch (e) {
       this.reportSaveError(e);
     } finally {
-      this.saving = false;
+      this.saving.delete(s);
     }
   }
 
@@ -478,10 +569,10 @@ export class App implements AppApi {
 
   async saveAs(): Promise<void> {
     const s = this.session;
-    if (!s || this.saving) return;
+    if (!s || this.saving.has(s)) return;
     const ref = await this.host.pickSavePath(s.file.name);
     if (!ref) return;
-    this.saving = true;
+    this.saving.add(s);
     try {
       const built = await s.buildForSave();
       const saved = await this.host.writeNew(ref, built.bytes);
@@ -491,17 +582,17 @@ export class App implements AppApi {
     } catch (e) {
       this.reportSaveError(e);
     } finally {
-      this.saving = false;
+      this.saving.delete(s);
     }
   }
 
   async exportCopy(flatten: boolean): Promise<void> {
     const s = this.session;
-    if (!s || this.saving) return;
+    if (!s || this.saving.has(s)) return;
     const base = s.file.name.replace(/\.pdf$/i, '');
     const ref = await this.host.pickSavePath(`${base} (${flatten ? t('app.flatSuffix') : t('app.copySuffix')}).pdf`);
     if (!ref) return;
-    this.saving = true;
+    this.saving.add(s);
     try {
       const bytes = await s.buildBytes({ flatten });
       await this.host.writeNew(ref, bytes);
@@ -509,24 +600,31 @@ export class App implements AppApi {
     } catch (e) {
       this.reportSaveError(e);
     } finally {
-      this.saving = false;
+      this.saving.delete(s);
     }
   }
 
-  private async confirmClose(): Promise<boolean> {
-    const s = this.session;
-    if (!s || !s.model.dirty) return true;
+  /** Save / don't save / cancel for one document; shows its tab while asking. */
+  private async confirmDiscard(s: DocSession): Promise<boolean> {
+    if (!s.model.dirty) return true;
+    this.activate(s);
     const r = await this.host.confirmDiscard(s.file.name);
     if (r === 'cancel') return false;
     if (r === 'discard') return true;
-    await this.save();
+    await this.save(false, s);
     return !s.model.dirty;
   }
 
+  /** The window closes: ask for every unsaved tab. */
+  private async confirmCloseAll(): Promise<boolean> {
+    for (const s of [...this.tabs]) if (!(await this.confirmDiscard(s))) return false;
+    return true;
+  }
+
+  /** Ctrl+W: closes the current tab, or the window when no document is open. */
   close(): void {
-    void this.confirmClose().then((ok) => {
-      if (ok) this.host.closeWindow();
-    });
+    if (this.session) void this.closeTab(this.session);
+    else this.host.closeWindow();
   }
 
   newWindow(): void {
@@ -608,7 +706,6 @@ export class App implements AppApi {
   newNotebook(): void {
     void this.askPage(t('app.newTitle'), t('app.create')).then(async (p) => {
       if (!p) return;
-      if (this.session && !(await this.confirmReplace())) return;
       try {
         const data = await createBlankPdf(p.w, p.h, p.template, 1);
         await this.openFile({ name: `${t('app.newName')}.pdf`, data });

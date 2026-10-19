@@ -39,6 +39,7 @@ Die Installation braucht keine Administratorrechte, Updates kommen automatisch v
 - **Textmarker auf PDF-Text**: Text markieren → hervorheben, unterstreichen, durchstreichen
 - **Neues Notizbuch** auf leerem Papier, Notizpapier (liniert, 8 mm), Blockpapier (kariert, 5 mm) oder Punktraster, in A3, A4, A5, A6 oder Letter, hoch oder quer
 - **Seiten**: „Seite hinzufügen“ unter der letzten Seite oder Seite einfügen, jeweils mit Wahl von Papier, Grösse (auch „wie die Seite davor“) und Ausrichtung; drehen, sortieren, duplizieren, löschen
+- **Tabs**: mehrere PDFs im selben Fenster, jedes mit eigener Ansicht; Strg+Tab wechselt, Strg+W schließt, Tabs per Ziehen sortieren. PDFs aus dem Explorer öffnen als neuer Tab
 - **Suche**, Gliederung, Miniaturen, Notizen-Übersicht, Drucken, Hell/Dunkel
 - **Touch**: Scrollen, Pinch-Zoom, Handballen-Erkennung
 
@@ -78,7 +79,7 @@ Technik: Electron · TypeScript · [PDF.js](https://mozilla.github.io/pdf.js/) (
 
 ## English
 
-Scribo is a PDF editor for handwritten study notes on Windows 11 with a pen: pressure-sensitive ink, automatic shape recognition, pen-button erase/lasso, favourites bar, lasso transform, text/shapes/notes, page management, and `Ctrl+S` saving straight into the same PDF (annotations stay visible in every viewer and editable in Scribo). Free and open source (MIT). Download the installer from the [latest release](https://github.com/Marco-P-Keller/scribo/releases/latest) or try the [browser version](https://marco-p-keller.github.io/scribo/app/).
+Scribo is a PDF editor for handwritten study notes on Windows 11 with a pen: pressure-sensitive ink, automatic shape recognition, pen-button erase/lasso, favourites bar, lasso transform, text/shapes/notes, page management, several PDFs as tabs in one window, and `Ctrl+S` saving straight into the same PDF (annotations stay visible in every viewer and editable in Scribo). Free and open source (MIT). Download the installer from the [latest release](https://github.com/Marco-P-Keller/scribo/releases/latest) or try the [browser version](https://marco-p-keller.github.io/scribo/app/).
 
 ## Lizenz
 

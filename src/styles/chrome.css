@@ -22,6 +22,118 @@
   -webkit-app-region: no-drag;
 }
 
+/* ── Tabs (two or more open documents) ─────────────────────────────────── */
+.tabbar {
+  position: relative;
+  z-index: 19;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 10px;
+  background: var(--bg-chrome);
+  box-shadow: inset 0 -0.5px 0 var(--line-strong);
+}
+.tabbar[hidden] {
+  display: none;
+}
+.tab-list {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 120px;
+  max-width: 260px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  cursor: default;
+  user-select: none;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.tab:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.tab[aria-selected='true'] {
+  background: var(--bg-solid);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 0.5px var(--line);
+}
+:root[data-theme='dark'] .tab[aria-selected='true'] {
+  background: #3a3a3f;
+}
+.tab-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab-dirty {
+  width: 7px;
+  height: 7px;
+  margin: 0 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+.tab-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--text-3);
+  opacity: 0;
+  transition: opacity 0.12s, background-color 0.12s;
+}
+.tab[aria-selected='true'] .tab-close,
+.tab:hover .tab-close,
+.tab-close:focus-visible {
+  opacity: 1;
+}
+.tab-close:hover {
+  background: var(--bg-press);
+  color: var(--text);
+}
+/* the dot marks unsaved changes; on hover it makes room for the close button */
+.tab.dirty .tab-close {
+  display: none;
+}
+.tab.dirty:hover .tab-close {
+  display: grid;
+}
+.tab.dirty:hover .tab-dirty {
+  display: none;
+}
+.tab-add {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--text-2);
+}
+.tab-add:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
 /* ── Title bar ─────────────────────────────────────────────────────────── */
 /* One quiet band: document on the left, the instruments in the middle, actions on the right. */
 .titlebar {
