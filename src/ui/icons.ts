@@ -40,48 +40,71 @@ function el<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, 
   return e;
 }
 
-/** Pen / highlighter illustrations for the favourites bar; the nib colour is the preset colour. */
-export function toolGlyph(kind: 'pen' | 'highlighter', color: string): SVGElement {
-  const svg = el('svg', { viewBox: '0 0 32 32', width: 30, height: 30, 'aria-hidden': 'true', class: `glyph glyph-${kind}` });
-  const g = el('g', { transform: 'rotate(40 16 16)' });
-  const outline = { stroke: 'rgba(0,0,0,0.32)', 'stroke-width': 0.9, 'stroke-linejoin': 'round' };
-  if (kind === 'pen') {
-    g.append(
-      // barrel
-      el('path', { d: 'M12.2 3.6a3.8 3.8 0 0 1 7.6 0V20h-7.6z', fill: color, ...outline }),
-      // sheen
-      el('path', { d: 'M13.6 4.4a2.4 2.4 0 0 1 1.2-1.5v16.4h-1.2z', fill: 'rgba(255,255,255,0.28)' }),
-      // ferrule
-      el('rect', { x: 12.2, y: 17.2, width: 7.6, height: 2.6, fill: 'rgba(255,255,255,0.55)' }),
-      // cone
-      el('path', { d: 'M12.2 20h7.6l-2.9 7.2a1 1 0 0 1-1.8 0z', fill: '#e9e9ee', ...outline }),
-      el('path', { d: 'M14.5 24.6h3l-1.05 2.7a.5.5 0 0 1-.9 0z', fill: color }),
+export type InstrumentKind = 'pen' | 'highlighter' | 'eraser' | 'lasso';
+
+let gradientId = 0;
+
+/**
+ * Upright drawing instruments for the tool bar, like pens standing in a tray: the bar clips them at
+ * its bottom edge and the selected one rises. The nib and band carry the preset colour.
+ */
+export function instrument(kind: InstrumentKind, color = '#111111'): SVGElement {
+  const wide = kind === 'highlighter';
+  const w = wide ? 26 : 22;
+  const cx = w / 2;
+  const id = `ins${++gradientId}`;
+  const svg = el('svg', { viewBox: `0 0 ${w} 64`, width: w, height: 64, 'aria-hidden': 'true', class: `ins ins-${kind}` });
+  // a turned, satin-white barrel: light from the upper left
+  const body = el(
+    'linearGradient',
+    { id: `${id}b`, x1: 0, y1: 0, x2: 1, y2: 0 },
+    el('stop', { offset: 0, 'stop-color': '#dedee3' }),
+    el('stop', { offset: 0.28, 'stop-color': '#ffffff' }),
+    el('stop', { offset: 0.62, 'stop-color': '#f6f6f8' }),
+    el('stop', { offset: 1, 'stop-color': '#cfcfd6' }),
+  );
+  svg.append(el('defs', {}, body));
+  const fill = `url(#${id}b)`;
+  const edge = { stroke: 'rgba(0,0,0,0.16)', 'stroke-width': 0.7, 'stroke-linejoin': 'round' };
+  const shade = 'rgba(0,0,0,0.05)';
+  const x0 = wide ? 3 : 3;
+  const x1 = w - x0;
+
+  if (kind === 'pen' || kind === 'lasso') {
+    svg.append(
+      el('rect', { x: x0, y: 24, width: x1 - x0, height: 44, fill, ...edge }),
+      el('path', { d: `M${x0} 24 L${cx - 1.4} 6.6 Q${cx} 3.2 ${cx + 1.4} 6.6 L${x1} 24 Z`, fill, ...edge }),
+      el('path', { d: `M${x0} 24 L${cx - 1.4} 6.6 Q${cx} 3.2 ${cx + 1.4} 6.6 L${x1} 24 Z`, fill: shade }),
+    );
+    const nib = kind === 'pen' ? color : '#3a3a40';
+    svg.append(el('path', { d: `M${cx - 2.9} 10.5 L${cx - 1.4} 6.6 Q${cx} 3.2 ${cx + 1.4} 6.6 L${cx + 2.9} 10.5 Z`, fill: nib }));
+    if (kind === 'pen') svg.append(el('rect', { x: x0, y: 28, width: x1 - x0, height: 4.5, fill: color }));
+    else svg.append(el('line', { x1: x0 + 0.6, x2: x1, y1: 30.25, y2: 30.25, style: 'stroke: var(--accent)', 'stroke-width': 4.5, 'stroke-dasharray': '2.6 1.8' }));
+  } else if (kind === 'highlighter') {
+    svg.append(
+      el('rect', { x: x0, y: 26, width: x1 - x0, height: 42, fill, ...edge }),
+      el('path', { d: `M${x0} 26 L${x0 + 3.5} 15 H${x1 - 3.5} L${x1} 26 Z`, fill, ...edge }),
+      el('path', { d: `M${x0} 26 L${x0 + 3.5} 15 H${x1 - 3.5} L${x1} 26 Z`, fill: shade }),
+      el('path', { d: `M${cx - 4.5} 15 V7.6 L${cx + 4.5} 4.4 V15 Z`, fill: color, ...edge }),
+      el('path', { d: `M${cx - 4.5} 15 V7.6 L${cx - 2.2} 6.8 V15 Z`, fill: 'rgba(255,255,255,0.32)' }),
+      el('rect', { x: x0, y: 30, width: x1 - x0, height: 5, fill: color }),
     );
   } else {
-    g.append(
-      // body
-      el('path', { d: 'M10.6 3.2a2.6 2.6 0 0 1 2.6-2.6h5.6a2.6 2.6 0 0 1 2.6 2.6V17h-10.8z', fill: '#f1f1f4', ...outline }),
-      el('rect', { x: 10.6, y: 8.4, width: 10.8, height: 5.2, fill: color, stroke: 'rgba(0,0,0,0.2)', 'stroke-width': 0.6 }),
-      // neck
-      el('path', { d: 'M10.6 17h10.8l-1.6 3.4h-7.6z', fill: '#d9d9de', ...outline }),
-      // chisel tip
-      el('path', { d: 'M12.2 20.4h7.6l1.4 6.2-3.2 2.4h-4l-3.2-2.4z', fill: color, ...outline }),
-      el('path', { d: 'M13.2 21.4h2.2l-.4 6.4h-1.1z', fill: 'rgba(255,255,255,0.3)' }),
+    const cap = el(
+      'linearGradient',
+      { id: `${id}c`, x1: 0, y1: 0, x2: 1, y2: 0 },
+      el('stop', { offset: 0, 'stop-color': '#e9a3b1' }),
+      el('stop', { offset: 0.3, 'stop-color': '#f8c9d2' }),
+      el('stop', { offset: 1, 'stop-color': '#dc8e9e' }),
+    );
+    svg.querySelector('defs')!.append(cap);
+    svg.append(
+      el('rect', { x: x0, y: 22, width: x1 - x0, height: 46, fill, ...edge }),
+      el('path', { d: `M${x0} 22 V13 Q${x0} 5 ${cx} 5 Q${x1} 5 ${x1} 13 V22 Z`, fill: `url(#${id}c)`, ...edge }),
+      el('rect', { x: x0, y: 21, width: x1 - x0, height: 3.6, fill: '#c4c4cb' }),
     );
   }
-  svg.append(g);
-  return svg;
-}
-
-export function eraserGlyph(): SVGElement {
-  const svg = el('svg', { viewBox: '0 0 32 32', width: 30, height: 30, 'aria-hidden': 'true', class: 'glyph glyph-eraser' });
-  const g = el('g', { transform: 'rotate(40 16 16)' });
-  const outline = { stroke: 'rgba(0,0,0,0.32)', 'stroke-width': 0.9, 'stroke-linejoin': 'round' };
-  g.append(
-    el('rect', { x: 9.6, y: 5, width: 12.8, height: 22, rx: 3, fill: '#f7a5b8', ...outline }),
-    el('path', { d: 'M9.6 17h12.8v7a3 3 0 0 1-3 3h-6.8a3 3 0 0 1-3-3z', fill: '#f2f2f5', ...outline }),
-    el('rect', { x: 9.6, y: 15.6, width: 12.8, height: 2.2, fill: 'rgba(0,0,0,0.12)' }),
-  );
-  svg.append(g);
+  // a soft specular line along the barrel
+  svg.append(el('rect', { x: x0 + 3, y: wide ? 36 : 34, width: 1.6, height: 30, rx: 0.8, fill: 'rgba(255,255,255,0.7)' }));
   return svg;
 }

@@ -85,7 +85,7 @@ async function scene(theme, name) {
     app.session.model.markClean();
   });
   await page.waitForTimeout(1200);
-  await page.mouse.move(150, 990);
+  await page.mouse.move(270, 990);
   await page.screenshot({ path: join(out, `hero-${name}.png`) });
 
   if (name === 'light') {

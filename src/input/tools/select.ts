@@ -3,8 +3,8 @@ import { bounds, hitTest, objectsInPolygon } from '../../core/objects';
 import { rectsIntersect } from '../../core/geometry';
 import type { Link, PageView } from '../../viewer/pageview';
 import type { EditorApi, Tool, ToolEvent } from '../types';
+import { ACCENT, accentAlpha } from '../../render/accent';
 
-const ACCENT = '#0a84ff';
 
 /**
  * The arrow: select / move / transform objects, rubber-band select, follow links,
@@ -208,7 +208,7 @@ export class SelectTool implements Tool {
     const x = Math.min(this.startPt.x, this.cur.x) * s, y = Math.min(this.startPt.y, this.cur.y) * s;
     const w = Math.abs(this.cur.x - this.startPt.x) * s, h = Math.abs(this.cur.y - this.startPt.y) * s;
     ctx.save();
-    ctx.fillStyle = 'rgba(10,132,255,0.1)';
+    ctx.fillStyle = accentAlpha(0.1);
     ctx.strokeStyle = ACCENT;
     ctx.lineWidth = 1;
     ctx.fillRect(x, y, w, h);

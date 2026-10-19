@@ -60,7 +60,7 @@ export function sheet<T>(opts: {
     document.body.append(backdrop);
     requestAnimationFrame(() => {
       backdrop.classList.add('show');
-      (card.querySelector('input,textarea,.btn.primary') as HTMLElement | null)?.focus();
+      (card.querySelector('input[type=text],input[type=password],textarea,.btn.primary') as HTMLElement | null)?.focus();
     });
     opts.onMount?.(card);
   });

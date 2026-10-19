@@ -5,6 +5,7 @@ import { clamp, dist, rotateM, scaleM, translateM } from '../core/geometry';
 import { boundsOfAll, clone, isTransformable, recolor, rewidth, transformObj } from '../core/objects';
 import { drawObjects } from '../render/draw';
 import { layoutText } from '../render/textlayout';
+import { ACCENT, accentAlpha } from '../render/accent';
 import type { PageView } from '../viewer/pageview';
 import type { Viewer } from '../viewer/viewer';
 
@@ -22,7 +23,6 @@ interface Drag {
   moved: boolean;
 }
 
-const ACCENT = '#0a84ff';
 
 export interface SelectionEvents extends Record<string, unknown> {
   change: undefined;
@@ -347,7 +347,7 @@ export class Selection extends Emitter<SelectionEvents> {
     } else {
       const pad = 5;
       const x = px(bb.x) - pad, y = px(bb.y) - pad, w = px(bb.w) + 2 * pad, h = px(bb.h) + 2 * pad;
-      ctx.fillStyle = 'rgba(10,132,255,0.06)';
+      ctx.fillStyle = accentAlpha(0.06);
       ctx.strokeStyle = ACCENT;
       ctx.lineWidth = 1.25;
       this.roundRect(ctx, x, y, w, h, 4);

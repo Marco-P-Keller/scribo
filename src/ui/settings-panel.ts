@@ -162,7 +162,7 @@ function penTestPad(onButtons: (bits: number) => void): { el: HTMLElement; dispo
 
 export async function showSettings(app: AppApi): Promise<void> {
   const s = settings;
-  const buttons = h('div.btn-map');
+  const buttons = h('div.group');
   const rows: [number, HTMLElement][] = [];
   const pad = penTestPad((bits) => {
     for (const [code, el] of rows) el.classList.toggle('pressed', (bits & code) !== 0);
@@ -180,7 +180,7 @@ export async function showSettings(app: AppApi): Promise<void> {
       buttonRow(32, t('set.btn2'), actionSelect(m.eraser, (v) => { s.patch('penButtons', { eraser: v }); })),
       buttonRow(2, t('set.btn1'), actionSelect(m.barrel, (v) => { s.patch('penButtons', { barrel: v }); })),
       buttonRow(4, t('set.btn3'), actionSelect(m.middle, (v) => { s.patch('penButtons', { middle: v }); })),
-      h('button.btn.small', {
+      h('button.set-row.set-action', {
         onclick: () => {
           const mm = s.get('penButtons');
           s.patch('penButtons', { barrel: mm.eraser, eraser: mm.barrel });
@@ -191,11 +191,14 @@ export async function showSettings(app: AppApi): Promise<void> {
   };
   paintButtons();
 
+  const section = (title: string, group: HTMLElement, foot?: string) =>
+    h('section', null, h('h3', null, title), group, foot ? h('div.group-foot', null, foot) : null);
+  const group = (...kids: HTMLElement[]) => h('div.group', null, kids);
+
   const body = h(
     'div.settings',
     null,
-    h('section', null,
-      h('h3', null, t('set.appearance')),
+    section(t('set.appearance'), group(
       row(t('set.theme'), segmented(
         [
           { value: 'auto' as const, label: t('set.themeAuto') },
@@ -217,9 +220,8 @@ export async function showSettings(app: AppApi): Promise<void> {
           setLang(v);
         },
       )),
-    ),
-    h('section', null,
-      h('h3', null, t('set.input')),
+    )),
+    section(t('set.input'), group(
       row(t('set.finger'), toggle(s.get('fingerDraws'), (v) => s.set('fingerDraws', v)), t('set.fingerHint')),
       row(t('set.mouse'), toggle(s.get('mouseDraws'), (v) => s.set('mouseDraws', v))),
       row(t('set.palm'), toggle(s.get('palmRejection'), (v) => s.set('palmRejection', v)), t('set.palmHint')),
@@ -235,15 +237,16 @@ export async function showSettings(app: AppApi): Promise<void> {
         (v) => s.set('snap', v),
       ), t('snap.hint')),
       row(t('set.lowLatency'), toggle(s.get('lowLatency'), (v) => s.set('lowLatency', v)), t('set.lowLatencyHint')),
-    ),
-    h('section', null, h('h3', null, t('set.buttons')), h('div.set-hint', null, t('set.buttonsHint')), buttons, h('div.set-sub', null, t('set.test')), h('div.set-hint', null, t('set.testHint')), pad.el),
-    h('section', null,
-      h('h3', null, t('set.save')),
+    )),
+    section(t('set.buttons'), buttons, t('set.buttonsHint')),
+    section(t('set.test'), group(pad.el), t('set.testHint')),
+    section(t('set.save'), group(
       row(t('set.autosave'), toggle(s.get('autosave'), (v) => s.set('autosave', v)), t('set.autosaveHint')),
-    ),
+    )),
     h('section.about', null,
-      h('h3', null, t('set.about')),
-      h('p', null, `Scribo · ${t('set.version', { v: app.host.appVersion })}`),
+      h('img', { src: 'icon.svg', alt: '', width: 56, height: 56, draggable: false }),
+      h('div.about-name', null, 'Scribo'),
+      h('p.set-hint', null, t('set.version', { v: app.host.appVersion })),
       h('p.set-hint', null, t('set.privacy')),
     ),
   );

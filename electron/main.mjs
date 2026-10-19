@@ -62,7 +62,7 @@ function createWindow(paths = []) {
     minHeight: 520,
     show: false,
     title: 'Scribo',
-    backgroundColor: dark ? '#1e1e21' : '#f6f6f8',
+    backgroundColor: dark ? '#19191b' : '#f6f5f2',
     autoHideMenuBar: true,
     ...(isMac
       ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 16, y: 18 } }
@@ -344,7 +344,7 @@ ipcMain.on('win:fullscreen', (e, on) => recOf(e)?.win.setFullScreen(on));
 ipcMain.on('win:theme', (e, dark) => {
   const rec = recOf(e);
   if (!rec || rec.win.isDestroyed()) return;
-  rec.win.setBackgroundColor(dark ? '#1e1e21' : '#f6f6f8');
+  rec.win.setBackgroundColor(dark ? '#19191b' : '#f6f5f2');
   if (!isMac) {
     try {
       rec.win.setTitleBarOverlay(overlayFor(dark));

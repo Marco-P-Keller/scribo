@@ -2,8 +2,8 @@ import { objectsInPolygon, hitTest } from '../../core/objects';
 import { boundsOfPoints } from '../../core/geometry';
 import type { PageView } from '../../viewer/pageview';
 import type { EditorApi, Tool, ToolEvent } from '../types';
+import { ACCENT, accentAlpha } from '../../render/accent';
 
-const ACCENT = '#0a84ff';
 
 /**
  * Freehand lasso. Selects everything that is (mostly) inside the loop. While a selection
@@ -127,7 +127,7 @@ export class LassoTool implements Tool {
     ctx.beginPath();
     for (let i = 0; i < this.path.length; i += 2) ctx[i ? 'lineTo' : 'moveTo'](this.path[i] * s, this.path[i + 1] * s);
     if (closing) ctx.closePath();
-    ctx.fillStyle = 'rgba(10,132,255,0.08)';
+    ctx.fillStyle = accentAlpha(0.08);
     ctx.fill();
     ctx.strokeStyle = ACCENT;
     ctx.lineWidth = 1.6;

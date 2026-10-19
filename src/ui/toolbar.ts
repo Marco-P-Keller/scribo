@@ -4,7 +4,7 @@ import { settings, PEN_COLORS, HIGHLIGHT_COLORS, NOTE_COLORS } from '../app/sett
 import { addPreset, currentPreset, favorites, movePreset, removePreset, selectPreset, updatePreset } from '../app/presets';
 import type { AppApi } from '../app/api';
 import { h } from './dom';
-import { eraserGlyph, icon, toolGlyph } from './icons';
+import { icon, instrument } from './icons';
 import type { IconName } from './icons';
 import { Popover, field, segmented, showMenu, slider, toggle } from './popover';
 import { colorPanel } from './colorpicker';
@@ -92,17 +92,18 @@ export class Toolbar {
 
   private build(): void {
     const toggleBtn = this.iconButton('sidebar', t('tb.sidebar'), () => this.app.toggleSidebar());
-    toggleBtn.classList.add('sidebar-toggle');
+    toggleBtn.classList.add('sidebar-toggle', 'doc-only');
     const left = h('div.tb-left.no-drag', null, toggleBtn, h('div.doc-info', null, this.nameEl, this.statusEl));
 
     this.undoBtn = this.iconButton('undo', t('tb.undo'), () => void this.app.editor.model.undo(), 'Ctrl+Z');
     this.redoBtn = this.iconButton('redo', t('tb.redo'), () => void this.app.editor.model.redo(), 'Ctrl+Y');
-    this.saveBtn = h('button.tb-btn.save', { title: `${t('tb.save')} (Ctrl+S)`, 'aria-label': t('tb.save'), onclick: () => void this.app.save() }, icon('save', 18));
+    this.saveBtn = h('button.tb-btn.save.doc-only', { title: `${t('tb.save')} (Ctrl+S)`, 'aria-label': t('tb.save'), onclick: () => void this.app.save() }, icon('save', 18));
     const searchBtn = this.iconButton('search', t('tb.search'), () => this.app.toggleSidebar('search'), 'Ctrl+F');
+    searchBtn.classList.add('doc-only');
     const moreBtn = this.iconButton('more', t('tb.more'), () => this.openMore(moreBtn));
-    const right = h('div.tb-right.no-drag', null, h('div.btn-group', null, this.undoBtn, this.redoBtn), searchBtn, this.saveBtn, moreBtn);
+    const right = h('div.tb-right.no-drag', null, h('div.btn-group.doc-only', null, this.undoBtn, this.redoBtn), searchBtn, this.saveBtn, moreBtn);
 
-    const center = h('div.tb-center.no-drag', null, this.tray);
+    const center = h('div.tb-center.no-drag.doc-only', null, this.tray);
     this.el.append(left, center, right);
     this.renderTray();
     this.setDocument(null);
@@ -162,14 +163,12 @@ export class Toolbar {
     );
   }
 
-  private fixedTool(id: ToolId, ic: IconName | 'eraser', key: string): HTMLButtonElement {
+  private fixedTool(id: ToolId, ic: IconName, key: string): HTMLButtonElement {
     const cur = settings.get('tool');
     const label = t(`tool.${id}`);
-    let glyph: Element;
-    if (id === 'eraser') glyph = eraserGlyph();
-    else glyph = icon(ic as IconName, 20, 1.65);
+    const upright = id === 'eraser' || id === 'lasso';
     const btn = h(
-      'button.tool',
+      upright ? 'button.tool.instrument' : 'button.tool',
       {
         title: key ? `${label} (${key})` : label,
         'aria-label': label,
@@ -177,7 +176,7 @@ export class Toolbar {
         class: cur === id ? 'selected' : '',
         'data-tool': id,
       },
-      glyph,
+      upright ? instrument(id) : icon(ic, 20, 1.6),
     );
     btn.addEventListener('click', () => this.onToolClick(id));
     return btn;
@@ -186,7 +185,7 @@ export class Toolbar {
   private presetButton(p: Preset, selected: boolean): HTMLButtonElement {
     const label = `${t(p.tool === 'pen' ? 'tool.pen' : 'tool.highlighter')} · ${p.width} pt`;
     const btn = h(
-      'button.tool.preset',
+      'button.tool.preset.instrument',
       {
         title: label,
         'aria-label': label,
@@ -194,8 +193,7 @@ export class Toolbar {
         class: selected ? 'selected' : '',
         dataset: { id: p.id },
       },
-      toolGlyph(p.tool, p.color),
-      h('span.dot', { style: `background:${p.color}` }),
+      instrument(p.tool, p.color),
     );
     btn.addEventListener('click', () => {
       if (this.dragging) return;
@@ -233,7 +231,7 @@ export class Toolbar {
           btn.classList.add('lifting');
           btn.setPointerCapture(ev.pointerId);
         }
-        if (moved) btn.style.transform = `translateX(${ev.clientX - startX}px) scale(1.08)`;
+        if (moved) btn.style.transform = `translateX(${ev.clientX - startX}px)`;
       };
       const cleanup = () => {
         clearTimeout(press);

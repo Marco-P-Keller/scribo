@@ -3,7 +3,7 @@ const T = {
   de: {
     'nav.features': 'Funktionen', 'nav.download': 'Download',
     'hero.eyebrow': 'Für Windows 11 · Kostenlos · Open Source',
-    'hero.title': 'Schreib auf PDFs,<br />als wäre es Papier.',
+    'hero.title': 'Schreib auf PDFs,<br />als wäre es <span class="ink-word">Papier<svg viewBox="0 0 300 30" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M6 20 C 60 10, 140 6, 200 12 S 270 22, 294 9" /></svg></span>.',
     'hero.lede': 'Scribo ist der PDF-Editor für handschriftliche Notizen im Studium. Druckempfindliche Tinte, Formerkennung und deine Stifttasten – minimalistisch, schnell und komplett offline.',
     'cta.download': 'Download für Windows', 'cta.try': 'Im Browser ausprobieren',
     'hero.fine': 'Windows 10 / 11 · 64-Bit und ARM64 · kein Konto, kein Tracking',
@@ -31,7 +31,7 @@ const T = {
   en: {
     'nav.features': 'Features', 'nav.download': 'Download',
     'hero.eyebrow': 'For Windows 11 · Free · Open source',
-    'hero.title': 'Write on PDFs<br />like it’s paper.',
+    'hero.title': 'Write on PDFs<br />like it’s <span class="ink-word">paper<svg viewBox="0 0 300 30" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M6 20 C 60 10, 140 6, 200 12 S 270 22, 294 9" /></svg></span>.',
     'hero.lede': 'Scribo is the PDF editor for handwritten study notes. Pressure-sensitive ink, shape recognition and your pen buttons – minimal, fast and completely offline.',
     'cta.download': 'Download for Windows', 'cta.try': 'Try it in the browser',
     'hero.fine': 'Windows 10 / 11 · 64-bit and ARM64 · no account, no tracking',
