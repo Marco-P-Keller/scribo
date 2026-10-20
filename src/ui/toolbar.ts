@@ -6,8 +6,9 @@ import type { AppApi } from '../app/api';
 import { h } from './dom';
 import { icon, instrument } from './icons';
 import type { IconName } from './icons';
-import { Popover, field, segmented, showMenu, slider, toggle } from './popover';
+import { Popover, field, segmented, showMenu, slider } from './popover';
 import { colorPanel } from './colorpicker';
+import { fillControls } from './fill';
 import { smoothingLabel } from './smooth-preview';
 import { FONT_FAMILY } from '../render/fonts';
 import { confirmDialog } from './dialogs';
@@ -25,7 +26,7 @@ addStrings(
     'eraser.clearTitle': 'Alle Anmerkungen dieser Seite löschen?', 'eraser.clearMsg': 'Du kannst das mit Rückgängig wiederherstellen.', 'eraser.clearDo': 'Seite leeren',
     'shape.line': 'Linie', 'shape.arrow': 'Pfeil', 'shape.rect': 'Rechteck', 'shape.ellipse': 'Ellipse', 'shape.poly': 'Polygon', 'shape.polyline': 'Linienzug',
     'shape.fill': 'Füllung', 'shape.dash': 'Linienart', 'shape.solid': 'Durchgezogen', 'shape.dashed': 'Gestrichelt', 'shape.dotted': 'Gepunktet',
-    'shape.polyHint': 'Punkte antippen · Doppeltippen oder Enter beendet',
+    'shape.polyHint': 'Punkte antippen · letzten Punkt nochmals antippen oder Enter beendet',
     'text.font': 'Schrift', 'text.size': 'Größe', 'text.style': 'Stil', 'text.align': 'Ausrichtung',
     'note.color': 'Farbe der Notiz',
     'tb.undo': 'Rückgängig', 'tb.redo': 'Wiederholen', 'tb.search': 'Suchen', 'tb.save': 'Speichern', 'tb.more': 'Mehr', 'tb.sidebar': 'Seitenleiste',
@@ -43,7 +44,7 @@ addStrings(
     'eraser.clearTitle': 'Delete all annotations on this page?', 'eraser.clearMsg': 'You can bring them back with Undo.', 'eraser.clearDo': 'Clear page',
     'shape.line': 'Line', 'shape.arrow': 'Arrow', 'shape.rect': 'Rectangle', 'shape.ellipse': 'Ellipse', 'shape.poly': 'Polygon', 'shape.polyline': 'Polyline',
     'shape.fill': 'Fill', 'shape.dash': 'Line style', 'shape.solid': 'Solid', 'shape.dashed': 'Dashed', 'shape.dotted': 'Dotted',
-    'shape.polyHint': 'Tap points · double-tap or Enter finishes',
+    'shape.polyHint': 'Tap points · tap the last point again or press Enter to finish',
     'text.font': 'Font', 'text.size': 'Size', 'text.style': 'Style', 'text.align': 'Alignment',
     'note.color': 'Note color',
     'tb.undo': 'Undo', 'tb.redo': 'Redo', 'tb.search': 'Search', 'tb.save': 'Save', 'tb.more': 'More', 'tb.sidebar': 'Sidebar',
@@ -344,7 +345,7 @@ export class Toolbar {
     const width = hl
       ? slider({ min: 6, max: 36, step: 1, value: p.width, format: (v) => `${v} pt`, onInput: (v) => apply({ width: v }) })
       : slider({ min: 0.4, max: 10, step: 0.1, value: p.width, format: (v) => `${v.toFixed(1)} pt`, onInput: (v) => apply({ width: Math.round(v * 10) / 10 }) });
-    const quick = (hl ? [8, 14, 22] : [0.7, 1.6, 3.5]).map((w) =>
+    const quick = (hl ? [8, 14, 22] : [1.2, 1.6, 3.5]).map((w) =>
       h('button.size-dot', { title: `${w} pt`, onclick: () => { apply({ width: w }); (width.querySelector('input') as HTMLInputElement).value = String(w); width.querySelector('input')!.dispatchEvent(new Event('input')); } },
         h('span', { style: `width:${Math.min(22, 4 + w * (hl ? 0.7 : 4))}px;height:${Math.min(22, 4 + w * (hl ? 0.7 : 4))}px` })),
     );
@@ -433,38 +434,27 @@ export class Toolbar {
       );
     };
     renderGrid();
-    const restyle = (partial: Record<string, unknown>) => ed.restyleSelectedShapes(partial);
-    const fillRow = h('div.fill-row');
-    const renderFill = () => {
-      fillRow.replaceChildren(
-        toggle(!!st().fill, (on) => {
-          const fill = on ? (st().fill ?? st().color) : null;
-          settings.patch('shape', { fill });
-          restyle({ fill: fill ?? undefined, fo: st().fillOpacity });
-          renderFill();
-        }),
-      );
-      if (st().fill) {
-        fillRow.append(
-          slider({
-            min: 5, max: 100, step: 5, value: Math.round(st().fillOpacity * 100), format: (v) => `${v} %`,
-            onInput: (v) => {
-              settings.patch('shape', { fillOpacity: v / 100 });
-              restyle({ fo: v / 100 });
-            },
-          }),
-        );
-      }
-    };
-    renderFill();
+    const restyle = (partial: Record<string, unknown>, merge?: string) => ed.restyleSelectedShapes(partial, merge);
+    const fill = fillControls({
+      fill: st().fill,
+      opacity: st().fillOpacity,
+      onFill: (c) => {
+        settings.patch('shape', { fill: c });
+        restyle(c ? { fill: c, fo: st().fillOpacity } : { fill: undefined });
+      },
+      onOpacity: (v) => {
+        settings.patch('shape', { fillOpacity: v });
+        restyle({ fo: v }, 'fill-opacity');
+      },
+    });
     return h(
       'div.panel',
       null,
       grid,
       st().kind === 'poly' || st().kind === 'polyline' ? h('div.hint', null, t('shape.polyHint')) : null,
       field(t('pop.color'), colorPanel({ colors: PEN_COLORS, value: st().color, onPick: (c) => { if (!c) return; settings.patch('shape', { color: c }); restyle({ c }); } })),
-      field(t('pop.width'), slider({ min: 0.5, max: 12, step: 0.5, value: st().width, format: (v) => `${v} pt`, onInput: (v) => { settings.patch('shape', { width: v }); restyle({ w: v }); } })),
-      field(t('shape.fill'), fillRow),
+      field(t('pop.width'), slider({ min: 0.5, max: 12, step: 0.5, value: st().width, format: (v) => `${v} pt`, onInput: (v) => { settings.patch('shape', { width: v }); restyle({ w: v }, 'shape-width'); } })),
+      fill,
       field(
         t('shape.dash'),
         segmented(

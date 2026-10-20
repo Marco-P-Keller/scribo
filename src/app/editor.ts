@@ -1,5 +1,5 @@
 import type { AnyObj, ImageObj, MarkObj, NoteObj, Rect, ShapeObj, TextObj, ToolId } from '../core/types';
-import { clone, uid } from '../core/objects';
+import { clone, hitTest, isFillable, uid } from '../core/objects';
 import { boundsOfAll } from '../core/objects';
 import { AnnotationModel } from '../core/model';
 import { Emitter } from '../core/emitter';
@@ -8,7 +8,7 @@ import type { PageView } from '../viewer/pageview';
 import type { DocSession } from './session';
 import { Selection } from '../input/selection';
 import { InputController } from '../input/controller';
-import type { EditorApi, Tool } from '../input/types';
+import type { EditorApi, Tool, ToolEvent } from '../input/types';
 import { InkTool } from '../input/tools/ink';
 import { EraserTool } from '../input/tools/eraser';
 import { LassoTool } from '../input/tools/lasso';
@@ -77,15 +77,20 @@ export class Editor extends Emitter<EditorEvents> implements EditorApi {
       viewer,
       getTool: () => this.activeTool,
       toolForAction: (a: PenAction) => (a === 'erase' ? this.eraser : a === 'lasso' ? this.lasso : a === 'select' ? this.select : null),
-      isDrawing: (t) => t.id !== 'select' && t.id !== 'pan',
+      // text and notes are placed with a click, so the mouse places them even when it doesn't draw
+      isDrawing: (t) => !['select', 'pan', 'text', 'note'].includes(t.id),
       isSpaceHeld: () => this.spaceHeld,
       overrideAt: (page, cx, cy, type) => {
-        // a selection made with the pen button stays grabbable with the plain tip
+        // a selection made with the pen button (or a finger tap) stays grabbable with the plain tip
         const sel = this.selection;
-        if (!sel.active || sel.page !== page || ['select', 'lasso'].includes(this.activeTool.id)) return null;
+        if (!sel.active || sel.page !== page) return null;
+        // select and lasso grab their own selection; a finger would pan there without this
+        const own = ['select', 'lasso'].includes(this.activeTool.id);
+        if (own && type !== 'touch') return null;
         const q = page.clientToPage(cx, cy);
-        return sel.hit(q.x, q.y, type === 'touch') ? this.lasso : null;
+        return sel.hit(q.x, q.y, type === 'touch') ? (own ? this.activeTool : this.lasso) : null;
       },
+      tapSelect: (e) => this.tapSelect(e),
       onPenInfo: (info) => this.emit('penInfo', info),
     });
     settings.on('change', (key) => {
@@ -163,6 +168,25 @@ export class Editor extends Emitter<EditorEvents> implements EditorApi {
     return settings.get('tool');
   }
 
+  /** A finger tap with a drawing tool: select the annotation under the finger (or drop the selection). */
+  private tapSelect(e: ToolEvent): void {
+    const page = e.page;
+    if (!this.session) return;
+    if (!page) {
+      this.selection.clear();
+      return;
+    }
+    const objs = this.objectsOf(page);
+    const tol = 12 / page.bitmapScale;
+    for (let i = objs.length - 1; i >= 0; i--) {
+      if (hitTest(objs[i], e.x, e.y, tol)) {
+        this.selection.set(page, [objs[i].id]);
+        return;
+      }
+    }
+    this.selection.clear();
+  }
+
   // ── EditorApi ─────────────────────────────────────────────────────────
 
   toast(message: string): void {
@@ -224,12 +248,17 @@ export class Editor extends Emitter<EditorEvents> implements EditorApi {
     this.selection.draw();
   }
 
-  /** Re-style selected shapes (called by the shape popover). */
-  restyleSelectedShapes(partial: Partial<ShapeObj>): void {
+  /**
+   * Re-style selected shapes (shape popover, fill menu of the selection). Fills only apply to closed
+   * shapes. `merge` folds a slider drag into one undo step.
+   */
+  restyleSelectedShapes(partial: Partial<ShapeObj>, merge?: string): void {
     if (!this.selection.active) return;
     const objs = this.selection.objects().filter((o): o is ShapeObj => o.t === 'shape');
     if (!objs.length) return;
+    const fills = 'fill' in partial || 'fo' in partial;
     const next = objs.map((o) => {
+      if (fills && !isFillable(o)) return o;
       const n: ShapeObj = { ...o, ...partial };
       if (!n.fill) {
         delete n.fill;
@@ -238,7 +267,7 @@ export class Editor extends Emitter<EditorEvents> implements EditorApi {
       if (!n.dash) delete n.dash;
       return n;
     });
-    this.model.replace('Form ändern', this.selection.page!.index, next);
+    this.model.replace(fills ? 'Füllung ändern' : 'Form ändern', this.selection.page!.index, next, merge);
     this.selection.draw();
   }
 

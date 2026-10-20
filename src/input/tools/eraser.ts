@@ -8,7 +8,7 @@ import type { EditorApi, Tool, ToolEvent } from '../types';
 /**
  * Eraser. "Stroke" mode removes every object the eraser touches, "point" mode cuts
  * ink strokes apart and only removes the touched piece. Edits are shown live and
- * committed as a single undo step when the pen lifts.
+ * committed as a single undo step when the pen lifts. Images are never erased.
  */
 export class EraserTool implements Tool {
   readonly id = 'eraser' as const;
@@ -81,6 +81,11 @@ export class EraserTool implements Tool {
     const next: AnyObj[] = [];
     let changed = false;
     for (const o of this.work) {
+      if (o.t === 'img') {
+        // pictures are removed on purpose only: select, then delete
+        next.push(o);
+        continue;
+      }
       if (point && o.t === 'ink') {
         const pieces = splitInk(o, x, y, r);
         if (pieces) {

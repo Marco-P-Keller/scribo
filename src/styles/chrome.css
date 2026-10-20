@@ -830,13 +830,13 @@
   background: var(--accent);
   color: #fff;
 }
-.fill-row {
+.fill-controls {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: inherit;
 }
-.fill-row .slider-row {
-  flex: 1;
+.fill-opacity:empty {
+  display: none;
 }
 .style-row {
   display: flex;

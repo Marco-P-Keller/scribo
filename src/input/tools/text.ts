@@ -48,6 +48,12 @@ export class TextTool implements Tool {
     }
   }
 
+  /** a finger tap places text like a click (fingers that don't draw only tap) */
+  tap(e: ToolEvent): void {
+    if (!this.down(e)) return;
+    this.up(e);
+  }
+
   cancel(): void {
     this.start = null;
   }

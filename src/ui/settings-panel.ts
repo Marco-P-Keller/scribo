@@ -16,8 +16,8 @@ addStrings(
   {
     'set.title': 'Einstellungen', 'set.done': 'Fertig',
     'set.appearance': 'Darstellung', 'set.theme': 'Design', 'set.themeAuto': 'System', 'set.themeLight': 'Hell', 'set.themeDark': 'Dunkel', 'set.language': 'Sprache',
-    'set.input': 'Stift & Eingabe', 'set.finger': 'Mit dem Finger zeichnen', 'set.fingerHint': 'Aus: Finger scrollen und zoomen, nur der Stift schreibt.',
-    'set.mouse': 'Mit der Maus zeichnen', 'set.palm': 'Handballen-Erkennung', 'set.palmHint': 'Berührungen werden ignoriert, solange der Stift am Bildschirm ist.',
+    'set.input': 'Stift & Eingabe', 'set.finger': 'Mit dem Finger zeichnen', 'set.fingerHint': 'Aus: Finger scrollen und zoomen, nur der Stift schreibt. Antippen wählt eine Anmerkung aus, die Auswahl lässt sich mit dem Finger verschieben.',
+    'set.mouse': 'Mit der Maus zeichnen', 'set.mouseHint': 'Aus: Die Maus verschiebt die Seite. Text und Notizen setzt sie weiterhin per Klick.', 'set.palm': 'Handballen-Erkennung', 'set.palmHint': 'Berührungen werden ignoriert, solange der Stift am Bildschirm ist.',
     'set.pressure': 'Druckempfindlichkeit', 'set.pressureHint': 'Links: fester drücken für dicke Linien. Rechts: schon leichter Druck reicht.',
     'set.pressureWidth': 'Einfluss des Drucks auf die Strichbreite', 'set.pressureWidthHint': 'Aus: Jede Linie ist gleich breit wie mit einem Fineliner. Ein: Fester drücken gibt dickere Linien.',
     'set.pressureAmount': 'Stärke des Einflusses', 'set.pressureAmountHint': 'Links: kaum Unterschied. Rechts: kräftiger Schwung wie mit einer Füllfeder.',
@@ -43,8 +43,8 @@ addStrings(
   {
     'set.title': 'Settings', 'set.done': 'Done',
     'set.appearance': 'Appearance', 'set.theme': 'Theme', 'set.themeAuto': 'System', 'set.themeLight': 'Light', 'set.themeDark': 'Dark', 'set.language': 'Language',
-    'set.input': 'Pen & input', 'set.finger': 'Draw with finger', 'set.fingerHint': 'Off: fingers scroll and zoom, only the pen writes.',
-    'set.mouse': 'Draw with mouse', 'set.palm': 'Palm rejection', 'set.palmHint': 'Touches are ignored while the pen is near the screen.',
+    'set.input': 'Pen & input', 'set.finger': 'Draw with finger', 'set.fingerHint': 'Off: fingers scroll and zoom, only the pen writes. A tap selects an annotation, and a finger can move the selection.',
+    'set.mouse': 'Draw with mouse', 'set.mouseHint': 'Off: the mouse moves the page. It still places text and notes with a click.', 'set.palm': 'Palm rejection', 'set.palmHint': 'Touches are ignored while the pen is near the screen.',
     'set.pressure': 'Pressure sensitivity', 'set.pressureHint': 'Left: press harder for thick lines. Right: light pressure is enough.',
     'set.pressureWidth': 'Pressure changes the line width', 'set.pressureWidthHint': 'Off: every line has the same width, like a fineliner. On: press harder for thicker lines.',
     'set.pressureAmount': 'Strength', 'set.pressureAmountHint': 'Left: barely any difference. Right: lively swell like a fountain pen.',
@@ -250,7 +250,7 @@ export async function showSettings(app: AppApi): Promise<void> {
     )),
     section(t('set.input'), group(
       row(t('set.finger'), toggle(s.get('fingerDraws'), (v) => s.set('fingerDraws', v)), t('set.fingerHint')),
-      row(t('set.mouse'), toggle(s.get('mouseDraws'), (v) => s.set('mouseDraws', v))),
+      row(t('set.mouse'), toggle(s.get('mouseDraws'), (v) => s.set('mouseDraws', v)), t('set.mouseHint')),
       row(t('set.palm'), toggle(s.get('palmRejection'), (v) => s.set('palmRejection', v)), t('set.palmHint')),
       row(t('set.pressureWidth'), toggle(s.get('pressureWidth'), (v) => { s.set('pressureWidth', v); paintPressure(); }), t('set.pressureWidthHint')),
       ...pressureFields,

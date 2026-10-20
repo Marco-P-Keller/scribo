@@ -64,7 +64,7 @@ export class LassoTool implements Tool {
 
   move(e: ToolEvent): void {
     if (this.mode === 'drag') {
-      this.ed.selection.update(e.x, e.y, { shift: e.shift, alt: e.alt });
+      this.ed.selection.update(e.x, e.y, { shift: e.shift, alt: e.alt }, { x: e.clientX, y: e.clientY });
       return;
     }
     if (this.mode !== 'lasso' || !this.page) return;

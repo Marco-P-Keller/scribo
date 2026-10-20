@@ -5,7 +5,7 @@ import {
   Maximize, Minimize, Minus, Moon, MousePointer2, Pencil, Pentagon, Plus, Printer, Redo2, RefreshCw, RotateCcw, RotateCw,
   Save, Scissors, Search, SendToBack, Settings, Shapes, Square, Star, StickyNote, Strikethrough, Sun, Trash2, Triangle, Type,
   Underline, Undo2, X, ZoomIn, ZoomOut, PanelLeft, Spline, Circle, Slash, LayoutGrid, FileText, Share, Waypoints, Palette,
-  Lock, Eye, SquarePen, WandSparkles,
+  Lock, Eye, SquarePen, WandSparkles, PaintBucket,
 } from 'lucide';
 import type { IconNode } from 'lucide';
 
@@ -21,6 +21,7 @@ const ICONS = {
   strike: Strikethrough, sun: Sun, trash: Trash2, triangle: Triangle, text: Type, underline: Underline, undo: Undo2, close: X,
   zoomIn: ZoomIn, zoomOut: ZoomOut, sidebar: PanelLeft, polyline: Spline, ellipse: Circle, line: Slash, thumbs: LayoutGrid,
   file: FileText, share: Share, waypoints: Waypoints, palette: Palette, lock: Lock, eye: Eye, edit: SquarePen, smooth: WandSparkles,
+  fill: PaintBucket,
 } satisfies Record<string, IconNode>;
 
 export type IconName = keyof typeof ICONS;

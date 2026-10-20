@@ -24,7 +24,7 @@ const url = `http://127.0.0.1:${server.address().port}/`;
 setTimeout(() => {
   console.error('✗ browser e2e watchdog: timed out');
   process.exit(2);
-}, 240000).unref();
+}, 300000).unref();
 
 let failures = 0;
 const ok = (c, m) => {
@@ -542,6 +542,204 @@ ok(back === 'ink', `save + reopen keeps the stroke editable (${back})`);
   const p1 = await p2.evaluate((id) => window.__scribo.session.model.pages[0].find((o) => o.id === id).p.slice(0, 2), id);
   ok(linked && Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) > 10, 'a selection still works after its page was scrolled away and back');
   await ctx2.close();
+}
+
+// ── eraser and pictures, finger taps, mouse placement, fills, polyline, moving across pages ──
+{
+  const ctx3 = await browser.newContext({ viewport: { width: 1360, height: 860 }, hasTouch: true, locale: 'de-DE' });
+  const p3 = await ctx3.newPage();
+  p3.on('pageerror', (e) => {
+    console.log('✗ pageerror', e.message);
+    failures++;
+  });
+  await p3.goto(`${url}?e2e=1`);
+  await p3.waitForFunction(() => window.__scribo, null, { polling: 100 });
+  await openDoc(p3, fixture());
+  const cdp3 = await ctx3.newCDPSession(p3);
+  const pen3 = new Pen(cdp3);
+  const set3 = (k, v) => p3.evaluate(([k, v]) => window.__scribo.settings.set(k, v), [k, v]);
+  const pageOf = (id) => p3.evaluate((id) => window.__scribo.session.model.pages.findIndex((l) => l.some((o) => o.id === id)), id);
+  const find = (id) => p3.evaluate((id) => window.__scribo.session.model.pages.flat().find((o) => o.id === id), id);
+  const at = (i, x, y) => p3.evaluate(([i, x, y]) => window.__scribo.viewer.viewFor(i).pageToClient(x, y), [i, x, y]);
+  const undo = () => p3.evaluate(() => window.__scribo.session.model.undo());
+  const tap3 = async (x, y) => {
+    await cdp3.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1, force: 0.5 }] });
+    await cdp3.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await p3.waitForTimeout(150);
+  };
+  await p3.evaluate(() => {
+    const m = window.__scribo.session.model;
+    m.add('box', 0, { id: 'box', t: 'shape', k: 'rect', p: [100, 100, 200, 100, 200, 160, 100, 160], c: '#0a6cff', w: 2 });
+    m.add('pic', 0, {
+      id: 'pic', t: 'img', x: 260, y: 100, w: 80, h: 60,
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    });
+  });
+
+  // the eraser leaves pictures alone; they are deleted by selecting them
+  await p3.keyboard.press('e');
+  {
+    const a = await at(0, 240, 130);
+    const b = await at(0, 360, 130);
+    await pen3.stroke(Array.from({ length: 12 }, (_, i) => [a.x + ((b.x - a.x) * i) / 11, a.y, 0.5]));
+    ok((await pageOf('pic')) === 0, 'the eraser does not remove a picture');
+    const c = await at(0, 100, 90);
+    const d = await at(0, 100, 170);
+    await pen3.stroke(Array.from({ length: 12 }, (_, i) => [c.x, c.y + ((d.y - c.y) * i) / 11, 0.5]));
+    ok((await pageOf('box')) === -1, 'the eraser still removes shapes');
+    await undo();
+  }
+
+  // a finger tap selects an annotation while the pen tool is on and fingers don't draw; a finger moves it
+  await p3.keyboard.press('p');
+  await p3.waitForTimeout(800); // palm rejection ignores touches right after the pen
+  {
+    const e = await at(0, 100, 130);
+    await tap3(e.x, e.y);
+    ok(await p3.evaluate(() => window.__scribo.editor.selection.ids.join() === 'box'), 'a finger tap selects the annotation under it');
+    const top = await p3.evaluate(() => window.__scribo.viewer.stage.scrollTop);
+    const s = await at(0, 150, 130);
+    await cdp3.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: s.x, y: s.y, id: 1, force: 0.5 }] });
+    for (let i = 1; i <= 8; i++) await cdp3.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: s.x + i * 8, y: s.y + i * 5, id: 1, force: 0.5 }] });
+    await cdp3.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    const box = await find('box');
+    const still = await p3.evaluate(() => window.__scribo.viewer.stage.scrollTop);
+    ok(box.p[0] > 120 && box.p[1] > 115 && still === top, `a finger drags the selection instead of scrolling (${box.p[0].toFixed(1)}, ${box.p[1].toFixed(1)})`);
+    await undo();
+    const f = await at(0, 450, 250);
+    await tap3(f.x, f.y);
+    ok(await p3.evaluate(() => !window.__scribo.editor.selection.active), 'a finger tap on empty paper drops the selection');
+  }
+
+  // with "draw with mouse" off the mouse still places text and notes with a click
+  await set3('mouseDraws', false);
+  {
+    const n0 = await p3.evaluate(() => window.__scribo.session.model.pages[0].length);
+    await p3.keyboard.press('t');
+    const a = await at(0, 120, 300);
+    await p3.mouse.click(a.x, a.y);
+    const text = await p3.waitForSelector('textarea.text-editor', { timeout: 3000 }).catch(() => null);
+    if (text) {
+      await p3.keyboard.type('Hallo');
+      await p3.keyboard.press('Escape');
+    }
+    await p3.waitForTimeout(200);
+    await p3.keyboard.press('n');
+    const b = await at(0, 400, 300);
+    await p3.mouse.click(b.x, b.y);
+    const note = await p3.waitForSelector('textarea.note-text', { timeout: 3000 }).catch(() => null);
+    if (note) {
+      await p3.keyboard.type('Notiz');
+      await p3.keyboard.press('Escape');
+    }
+    await p3.waitForTimeout(300);
+    const kinds = await p3.evaluate(() => window.__scribo.session.model.pages[0].map((o) => o.t));
+    ok(!!text && !!note && kinds.includes('text') && kinds.includes('note') && kinds.length === n0 + 2, 'with "draw with mouse" off, a click places text and notes');
+    await undo();
+    await undo();
+  }
+  await set3('mouseDraws', true);
+
+  // fill colour and fill opacity of a selected shape; a slider drag is one undo step
+  await p3.keyboard.press('v');
+  {
+    const e = await at(0, 100, 130);
+    await p3.mouse.click(e.x, e.y);
+    await p3.waitForTimeout(150);
+    const fillBtn = p3.locator('.sel-menu button[aria-label="Füllung"]');
+    ok((await fillBtn.count()) === 1, 'a selected rectangle offers "Füllung"');
+    await fillBtn.click();
+    await p3.locator('.fill-popover .swatch').nth(3).click();
+    let box = await find('box');
+    ok(!!box.fill && box.fo === 0.2, `a fill colour can be picked (${box.fill}, ${box.fo})`);
+    await p3.locator('.fill-popover input.slider').evaluate((input) => {
+      for (const v of [30, 45, 60, 75]) {
+        input.value = String(v);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    box = await find('box');
+    ok(box.fo === 0.75 && (await p3.locator('.fill-popover').count()) === 1, `the fill opacity follows the slider and the panel stays open (${box.fo})`);
+    await undo();
+    box = await find('box');
+    ok(box.fo === 0.2 && !!box.fill, `one undo takes back the whole slider drag (${box.fo})`);
+    await p3.locator('.fill-popover .swatch.none').click();
+    box = await find('box');
+    ok(!box.fill && box.fo === undefined, 'the fill can be removed again');
+    await p3.keyboard.press('Escape');
+    await p3.keyboard.press('Escape');
+  }
+
+  // polyline: choosing the last point again ends it, no quick double click needed
+  await p3.keyboard.press('s');
+  await p3.evaluate(() => window.__scribo.settings.patch('shape', { kind: 'polyline' }));
+  {
+    const n0 = await p3.evaluate(() => window.__scribo.session.model.pages[0].length);
+    for (const [x, y] of [[100, 260], [200, 300], [300, 260]]) {
+      const c = await at(0, x, y);
+      await p3.mouse.click(c.x, c.y);
+      await p3.waitForTimeout(450);
+    }
+    const last = await at(0, 300, 260);
+    await p3.mouse.click(last.x + 7, last.y + 5);
+    await p3.waitForTimeout(150);
+    const objs3 = await p3.evaluate(() => window.__scribo.session.model.pages[0]);
+    const line = objs3.at(-1);
+    ok(objs3.length === n0 + 1 && line.k === 'polyline' && line.p.length === 6, `a click on the last point again finishes the polyline (${line.k}, ${line.p.length / 2} points)`);
+    await undo();
+    await p3.evaluate(() => window.__scribo.settings.patch('shape', { kind: 'rect' }));
+  }
+
+  // drag and drop onto another page, both visible
+  await p3.keyboard.press('v');
+  await p3.evaluate(() => { const v = window.__scribo.viewer; v.setZoom(0.5); v.stage.scrollTop = 0; });
+  await p3.waitForFunction(() => window.__scribo.viewer.viewFor(1)?.rendered, null, { timeout: 10000 });
+  {
+    const a = await at(0, 100, 130);
+    const b = await at(1, 100, 200);
+    await p3.mouse.move(a.x, a.y);
+    await p3.mouse.down();
+    await p3.mouse.move(b.x, b.y, { steps: 14 });
+    await p3.mouse.up();
+    await p3.waitForTimeout(150);
+    const box = await find('box');
+    const sel = await p3.evaluate(() => { const s = window.__scribo.editor.selection; return { page: s.page?.index, ids: s.ids.join() }; });
+    ok((await pageOf('box')) === 1 && Math.abs(box.p[0] - 100) < 2 && Math.abs(box.p[1] - 170) < 2, `dragging an annotation onto the next page moves it there (${box.p[0].toFixed(1)}, ${box.p[1].toFixed(1)})`);
+    ok(sel.page === 1 && sel.ids === 'box', 'the selection follows it to the new page');
+    // below 100 % the ink bitmap is smaller than the page in points; it must still be cleared completely
+    const ghost = await p3.evaluate(() => {
+      const v = window.__scribo.viewer.viewFor(0);
+      const q = v.pageToClient(101, 130);
+      const c = v.el.querySelector('canvas.ink');
+      const r = c.getBoundingClientRect();
+      const k = c.width / r.width;
+      const d = c.getContext('2d').getImageData(Math.round((q.x - r.left) * k) - 3, Math.round((q.y - r.top) * k) - 3, 6, 6).data;
+      let n = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i] > 20) n++;
+      return n;
+    });
+    ok(ghost === 0, `no trace of it is left on the old page (${ghost} px)`);
+    await undo();
+    const back = await find('box');
+    ok((await pageOf('box')) === 0 && back.p[0] === 100 && back.p[1] === 100, 'undo puts it back on its page');
+  }
+
+  // held at the bottom edge, the document scrolls and the annotation travels to a page out of view
+  await pinLayout(p3);
+  {
+    const a = await at(0, 100, 130);
+    const bottom = await p3.evaluate(() => window.__scribo.viewer.stage.getBoundingClientRect().bottom);
+    await p3.mouse.move(a.x, a.y);
+    await p3.mouse.down();
+    await p3.mouse.move(a.x, bottom - 6, { steps: 16 });
+    await p3.waitForTimeout(2200);
+    await p3.mouse.up();
+    await p3.waitForTimeout(200);
+    const top = await p3.evaluate(() => window.__scribo.viewer.stage.scrollTop);
+    const i = await pageOf('box');
+    ok(top > 1000 && i > 0, `holding a drag at the edge scrolls and drops on a later page (page ${i + 1}, scrolled ${Math.round(top)} px)`);
+  }
+  await ctx3.close();
 }
 
 await browser.close();

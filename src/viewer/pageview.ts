@@ -30,7 +30,8 @@ export class Layer {
     if (this.canvas.width !== w || this.canvas.height !== h) {
       this.canvas.width = w;
       this.canvas.height = h;
-    } else this.ctx.clearRect(0, 0, w, h);
+      // the page transform is still set: below scale 1 a plain clearRect would miss the lower right part
+    } else this.clear();
   }
 
   place(region: Rect, factor: number): void {

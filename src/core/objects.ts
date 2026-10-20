@@ -247,6 +247,11 @@ export function isTransformable(o: AnyObj): boolean {
   return o.t !== 'mark' && o.t !== 'note';
 }
 
+/** Closed shapes, the ones that can have a fill. */
+export function isFillable(o: AnyObj): o is ShapeObj {
+  return o.t === 'shape' && (o.k === 'rect' || o.k === 'ellipse' || o.k === 'poly');
+}
+
 export function recolor(o: AnyObj, color: string): AnyObj {
   return o.t === 'img' ? o : { ...o, c: color };
 }

@@ -5,18 +5,20 @@ import { icon } from './icons';
 import type { IconName } from './icons';
 import { Popover } from './popover';
 import { colorPanel } from './colorpicker';
+import { fillControls } from './fill';
+import { isFillable } from '../core/objects';
 import { addStrings, t } from './i18n';
 
 addStrings(
   {
     'sel.cut': 'Ausschneiden', 'sel.copy': 'Kopieren', 'sel.duplicate': 'Duplizieren', 'sel.delete': 'Löschen', 'sel.color': 'Farbe',
-    'sel.front': 'Nach vorne', 'sel.back': 'Nach hinten', 'sel.edit': 'Bearbeiten', 'sel.smooth': 'Striche glätten',
+    'sel.front': 'Nach vorne', 'sel.back': 'Nach hinten', 'sel.edit': 'Bearbeiten', 'sel.smooth': 'Striche glätten', 'sel.fill': 'Füllung',
     'mark.hl': 'Markieren', 'mark.ul': 'Unterstreichen', 'mark.st': 'Durchstreichen',
     'page.prev': 'Vorherige Seite', 'page.next': 'Nächste Seite', 'zoom.in': 'Vergrößern', 'zoom.out': 'Verkleinern', 'zoom.fitWidth': 'Breite anpassen', 'zoom.fitPage': 'Ganze Seite',
   },
   {
     'sel.cut': 'Cut', 'sel.copy': 'Copy', 'sel.duplicate': 'Duplicate', 'sel.delete': 'Delete', 'sel.color': 'Color',
-    'sel.front': 'Bring to front', 'sel.back': 'Send to back', 'sel.edit': 'Edit', 'sel.smooth': 'Smooth strokes',
+    'sel.front': 'Bring to front', 'sel.back': 'Send to back', 'sel.edit': 'Edit', 'sel.smooth': 'Smooth strokes', 'sel.fill': 'Fill',
     'mark.hl': 'Highlight', 'mark.ul': 'Underline', 'mark.st': 'Strike through',
     'page.prev': 'Previous page', 'page.next': 'Next page', 'zoom.in': 'Zoom in', 'zoom.out': 'Zoom out', 'zoom.fitWidth': 'Fit width', 'zoom.fitPage': 'Fit page',
   },
@@ -48,6 +50,8 @@ export class FloatingMenus {
   private textMenu = h('div.floating.text-menu.keep-focus');
   private update = frame(() => this.layout());
   private colorPop: Popover | null = null;
+  /** page and ids of the selection the menu was built for */
+  private selKey = '';
 
   constructor(private app: AppApi) {
     const host = app.viewer.overlay;
@@ -58,12 +62,19 @@ export class FloatingMenus {
     app.editor.on('tool', () => this.update());
     document.addEventListener('selectionchange', () => this.update());
     app.viewer.stage.addEventListener('pointerup', () => setTimeout(() => this.update(), 30));
+    // hide the pill while its selection is being dragged
+    app.viewer.stage.addEventListener('pointermove', () => {
+      if (app.editor.selection.dragging && this.selMenu.classList.contains('show')) this.update();
+    });
     this.rebuildSelection();
   }
 
   private rebuildSelection(): void {
     const sel = this.app.editor.selection;
-    this.colorPop?.close();
+    // restyling the selection keeps the fill panel open (its slider is being dragged); a new selection closes it
+    const key = sel.active ? `${sel.page!.index}:${sel.ids.join(',')}` : '';
+    if (key !== this.selKey || !this.colorPop?.el.classList.contains('fill-popover')) this.colorPop?.close();
+    this.selKey = key;
     this.selMenu.replaceChildren();
     if (!sel.active) {
       this.selMenu.classList.remove('show');
@@ -72,6 +83,7 @@ export class FloatingMenus {
     const objs = sel.objects();
     const colorable = objs.some((o) => o.t !== 'img');
     const colorBtn = btn('palette', t('sel.color'), () => this.openColor(colorBtn));
+    const fillBtn = btn('fill', t('sel.fill'), () => this.openFill(fillBtn));
     const single = objs.length === 1 ? objs[0] : null;
     const parts: (Node | null)[] = [
       btn('cut', t('sel.cut'), () => this.app.editor.cutSelection()),
@@ -84,6 +96,7 @@ export class FloatingMenus {
           })
         : null,
       colorable ? colorBtn : null,
+      objs.some(isFillable) ? fillBtn : null,
       objs.some((o) => o.t === 'ink')
         ? btn('smooth', t('sel.smooth'), () => sel.smooth({
             // every press smooths once more; with smoothing switched off it still does something
@@ -105,6 +118,29 @@ export class FloatingMenus {
     const sel = this.app.editor.selection;
     const content = h('div.panel', null, colorPanel({ colors: PEN_COLORS, value: null, onPick: (c) => c && sel.recolor(c) }));
     this.colorPop = new Popover(content, { anchor, className: 'tool-popover keep-focus' }).open();
+  }
+
+  /** Fill colour and its opacity for the selected rectangles, ellipses and polygons. */
+  private openFill(anchor: HTMLElement): void {
+    this.colorPop?.close();
+    const ed = this.app.editor;
+    const first = ed.selection.objects().find(isFillable);
+    if (!first) return;
+    let opacity = first.fo ?? settings.get('shape').fillOpacity;
+    const content = h(
+      'div.panel',
+      null,
+      fillControls({
+        fill: first.fill ?? null,
+        opacity,
+        onFill: (c) => ed.restyleSelectedShapes(c ? { fill: c, fo: opacity } : { fill: undefined }),
+        onOpacity: (v) => {
+          opacity = v;
+          ed.restyleSelectedShapes({ fo: v }, 'fill-opacity');
+        },
+      }),
+    );
+    this.colorPop = new Popover(content, { anchor, className: 'tool-popover fill-popover keep-focus' }).open();
   }
 
   private layout(): void {

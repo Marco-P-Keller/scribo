@@ -6,6 +6,7 @@ import { drawObj } from '../../render/draw';
 import { settings } from '../../app/settings';
 import type { PageView } from '../../viewer/pageview';
 import type { EditorApi, Tool, ToolEvent } from '../types';
+import { ACCENT, accentAlpha } from '../../render/accent';
 
 /** Lines, arrows, rectangles, ellipses (drag) and polygons / polylines (click points). */
 export class ShapeTool implements Tool {
@@ -19,6 +20,8 @@ export class ShapeTool implements Tool {
   private hoverPt: { x: number; y: number } | null = null;
   private dragging = false;
   private lastClick = { t: 0, x: 0, y: 0 };
+  /** what placed the last vertex (sets the size of the "finish here" ring) */
+  private pointer: ToolEvent['pointerType'] = 'mouse';
   private raf = 0;
 
   constructor(private ed: EditorApi) {}
@@ -90,18 +93,25 @@ export class ShapeTool implements Tool {
     this.b = { x: e.x, y: e.y };
     this.dragging = true;
     if (this.isPoly()) {
-      const fast = e.time - this.lastClick.t < 380 && dist(e.clientX, e.clientY, this.lastClick.x, this.lastClick.y) < 8;
-      const first = this.verts.length >= 4 && dist(e.x, e.y, this.verts[0], this.verts[1]) < 10 / e.page.bitmapScale;
-      if (fast && this.verts.length >= 4) {
+      const v = this.verts;
+      const r = FINISH_RADIUS[e.pointerType] / e.page.bitmapScale;
+      const fast = e.time - this.lastClick.t < 380 && dist(e.clientX, e.clientY, this.lastClick.x, this.lastClick.y) < 16;
+      // choosing the last point again ends the line (no need to be quick: a second tap on it is enough)
+      const onLast = v.length >= 2 && dist(e.x, e.y, v[v.length - 2], v[v.length - 1]) < r;
+      const onFirst = v.length >= 4 && dist(e.x, e.y, v[0], v[1]) < r;
+      if ((fast || onLast) && v.length >= 4) {
         this.finishPoly(true);
         return true;
       }
-      if (first && this.kind() === 'poly') {
+      if (onFirst && this.kind() === 'poly') {
         this.finishPoly(true);
         return true;
       }
-      this.verts.push(e.x, e.y);
+      // a quick second click on the very first point would otherwise add the same vertex twice
+      if (fast || onLast) return true;
+      v.push(e.x, e.y);
       this.lastClick = { t: e.time, x: e.clientX, y: e.clientY };
+      this.pointer = e.pointerType;
     }
     this.schedule();
     return true;
@@ -193,9 +203,37 @@ export class ShapeTool implements Tool {
       const pts = this.verts.slice();
       if (this.hoverPt) pts.push(this.hoverPt.x, this.hoverPt.y);
       if (pts.length >= 4) drawObj(ctx, this.make(pts));
+      if (this.verts.length >= 4) this.drawFinishTarget(page);
       return;
     }
     if (!this.dragging) return;
     drawObj(ctx, this.make(this.geometry(this.shift, this.alt)));
   }
+
+  /** The ring around the last point: choosing it again ends the line (for a polygon the first point closes it too). */
+  private drawFinishTarget(page: PageView): void {
+    const v = this.verts;
+    const s = page.bitmapScale;
+    const r = FINISH_RADIUS[this.pointer];
+    const ctx = page.liveScreenCtx();
+    ctx.save();
+    ctx.strokeStyle = ACCENT;
+    ctx.fillStyle = accentAlpha(0.12);
+    ctx.lineWidth = 1.5;
+    const ring = (x: number, y: number) => {
+      ctx.beginPath();
+      ctx.arc(x * s, y * s, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    };
+    ring(v[v.length - 2], v[v.length - 1]);
+    if (this.kind() === 'poly') {
+      ctx.setLineDash([3, 3]);
+      ring(v[0], v[1]);
+    }
+    ctx.restore();
+  }
 }
+
+/** css px around the last point that count as "this point again"; fingers and pens are less precise than a mouse */
+const FINISH_RADIUS: Record<ToolEvent['pointerType'], number> = { mouse: 12, pen: 18, touch: 24 };

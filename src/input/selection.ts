@@ -1,7 +1,7 @@
 import type { AnyObj, InkObj, Mat, Rect, ShapeObj, TextObj } from '../core/types';
 import { Emitter } from '../core/emitter';
 import type { AnnotationModel, Patch } from '../core/model';
-import { clamp, dist, rotateM, scaleM, translateM } from '../core/geometry';
+import { clamp, dist, mul, rotateM, scaleM, translateM } from '../core/geometry';
 import { boundsOfAll, clone, isTransformable, recolor, rewidth, transformObj } from '../core/objects';
 import { resmooth } from '../core/ink';
 import type { SmoothOptions } from '../core/smooth';
@@ -23,7 +23,15 @@ interface Drag {
   /** replacement objects for modes that can't be expressed as a matrix (vertex, text width) */
   custom: AnyObj[] | null;
   moved: boolean;
+  /** last pointer position (client px) of a move; drives edge scrolling and dropping on another page */
+  client: { x: number; y: number } | null;
+  mods: { shift?: boolean; alt?: boolean };
+  /** the other page the objects would be dropped on (pointer over it), else null */
+  target: PageView | null;
 }
+
+/** css px from the top / bottom edge of the document area where a move starts scrolling */
+const EDGE = 44;
 
 
 export interface SelectionEvents extends Record<string, unknown> {
@@ -68,6 +76,8 @@ export class Selection extends Emitter<SelectionEvents> {
 
   clear(): void {
     if (!this.page && !this.ids.length) return;
+    this.stopEdgeScroll();
+    this.clearDrop();
     this.erase();
     this.page = null;
     this.ids = [];
@@ -85,7 +95,11 @@ export class Selection extends Emitter<SelectionEvents> {
     if (!v) return;
     if (v !== this.page) {
       this.page = v;
-      this.drag = null;
+      // a move scrolled the page out of view and back: keep carrying the objects
+      if (this.drag?.handle === 'move') {
+        v.hidden = new Set(this.ids);
+        v.redrawAnnotations();
+      } else this.drag = null;
     }
     if (!this.drag?.moved) this.draw();
   }
@@ -193,16 +207,29 @@ export class Selection extends Emitter<SelectionEvents> {
     const objs = this.objects();
     const box = boundsOfAll(objs);
     if (!box) return;
-    this.drag = { handle, start: { x, y }, box, objs, m: [1, 0, 0, 1, 0, 0], custom: null, moved: false };
+    this.drag = { handle, start: { x, y }, box, objs, m: [1, 0, 0, 1, 0, 0], custom: null, moved: false, client: null, mods: {}, target: null };
     this.page.syncScale();
     this.page.hidden = new Set(this.ids);
     this.page.redrawAnnotations();
     this.draw();
   }
 
-  update(x: number, y: number, mods: { shift?: boolean; alt?: boolean } = {}): void {
+  /**
+   * `client` (the pointer in client px) lets a move scroll at the edges of the document area and
+   * carry the objects onto another page; the page-space point is then taken from it.
+   */
+  update(x: number, y: number, mods: { shift?: boolean; alt?: boolean } = {}, client?: { x: number; y: number }): void {
     const d = this.drag;
     if (!d || !this.page) return;
+    d.mods = mods;
+    if (client && d.handle === 'move') {
+      // the stage may have scrolled since the drag started: convert afresh
+      ({ x, y } = this.viewer.clientToPageAt(this.page.index, client.x, client.y));
+      d.client = client;
+      const over = this.viewer.pageAtClient(client.x, client.y, 0);
+      d.target = over && over.index !== this.page.index ? over : null;
+      this.edgeScroll();
+    }
     const dx = x - d.start.x;
     const dy = y - d.start.y;
     if (!d.moved && Math.hypot(dx, dy) * this.page.bitmapScale < 2.5) return;
@@ -282,8 +309,14 @@ export class Selection extends Emitter<SelectionEvents> {
     const d = this.drag;
     const page = this.page;
     this.drag = null;
+    this.stopEdgeScroll();
+    this.clearDrop();
     if (!d || !page) return false;
     page.hidden.clear();
+    if (d.moved && d.handle === 'move' && d.target) {
+      this.moveToPage(page, d.target, d.m);
+      return true;
+    }
     if (!d.moved) {
       page.redrawAnnotations();
       this.draw();
@@ -304,14 +337,87 @@ export class Selection extends Emitter<SelectionEvents> {
     return true;
   }
 
+  /** Drop the selection on another page: one undo step that removes it here and adds it there. */
+  private moveToPage(from: PageView, to: PageView, m: Mat): void {
+    const off = this.viewer.pageOffset(from.index, to.index);
+    const shift = mul(translateM(off.x, off.y), m);
+    const list = this.model.pages[from.index] ?? [];
+    const dest = this.model.pages[to.index];
+    if (!dest) return;
+    const set = new Set(this.ids);
+    const patches: Patch[] = [];
+    const moved: AnyObj[] = [];
+    // removals from the back so that undo re-inserts every object at its old z position
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (set.has(list[i].id)) patches.push({ page: from.index, id: list[i].id, before: list[i], after: null, index: i });
+    }
+    for (const o of list) {
+      if (!set.has(o.id)) continue;
+      const n = transformObj(o, shift);
+      moved.push(n.t === 'text' ? layoutText(n) : n);
+    }
+    moved.forEach((o, i) => patches.push({ page: to.index, id: o.id, before: null, after: o, index: dest.length + i }));
+    from.clearLive();
+    from.redrawAnnotations();
+    // follow the objects first: the model change prunes selection ids that aren't on the selection's page
+    this.page = to;
+    this.ids = moved.map((o) => o.id);
+    this.model.commit('Auf andere Seite verschieben', patches);
+    this.draw();
+    this.emit('change', undefined);
+  }
+
+  // ── moving across pages ───────────────────────────────────────────────
+
+  /** the page that shows the objects being carried onto it */
+  private dropPage: PageView | null = null;
+  private scrollRaf = 0;
+
+  private clearDrop(): void {
+    this.dropPage?.clearLive();
+    this.dropPage = null;
+  }
+
+  /** Scroll while a move is held near the top or bottom edge, so objects can travel to pages out of view. */
+  private edgeScroll(): void {
+    if (this.scrollRaf) return;
+    const speed = this.edgeSpeed();
+    if (!speed) return;
+    this.scrollRaf = requestAnimationFrame(() => {
+      this.scrollRaf = 0;
+      const d = this.drag;
+      const v = this.edgeSpeed();
+      if (!d?.client || !v) return;
+      this.viewer.stage.scrollTop += v;
+      // the page under a still pointer changed: same client point, new page-space point
+      this.update(d.start.x, d.start.y, d.mods, d.client);
+    });
+  }
+
+  private edgeSpeed(): number {
+    const c = this.drag?.client;
+    if (!c) return 0;
+    const r = this.viewer.stage.getBoundingClientRect();
+    const into = c.y < r.top + EDGE ? c.y - (r.top + EDGE) : c.y > r.bottom - EDGE ? c.y - (r.bottom - EDGE) : 0;
+    if (!into) return 0;
+    return Math.sign(into) * Math.min(26, 3 + Math.abs(into) * 0.4);
+  }
+
+  private stopEdgeScroll(): void {
+    cancelAnimationFrame(this.scrollRaf);
+    this.scrollRaf = 0;
+  }
+
   // ── chrome ────────────────────────────────────────────────────────────
 
   draw(): void {
     const page = this.page;
     if (!page || !page.rendered) return;
     page.clearLive();
-    if (!this.ids.length) return;
     const d = this.drag;
+    const target = d?.moved && d.handle === 'move' ? d.target : null;
+    if (this.dropPage && this.dropPage !== target) this.clearDrop();
+    if (!this.ids.length) return;
     const ctxP = page.liveCtx();
     // lifted objects under the live transform
     if (d && d.moved) {
@@ -323,10 +429,29 @@ export class Selection extends Emitter<SelectionEvents> {
       }
       ctxP.restore();
     }
+    if (target && d) {
+      // carried over another page: show them there too, with the selection frame
+      const off = this.viewer.pageOffset(page.index, target.index);
+      const m = mul(translateM(off.x, off.y), d.m);
+      const ctxT = target.liveCtx();
+      target.clearLive();
+      ctxT.save();
+      ctxT.transform(...m);
+      drawObjects(ctxT, d.objs);
+      ctxT.restore();
+      this.dropPage = target;
+      this.chrome(target, d.objs.map((o) => transformObj(o, m)), false);
+      return;
+    }
+    const objs = d?.moved ? (d.custom ?? d.objs.map((o) => transformObj(o, d.m))) : this.objects();
+    this.chrome(page, objs, !(d && d.moved));
+  }
+
+  /** Selection frame, handles or vertex knobs around `objs` on `page`'s live layer. */
+  private chrome(page: PageView, objs: AnyObj[], handles: boolean): void {
     const s = page.bitmapScale;
     const ctx = page.liveScreenCtx();
     const vshape = this.vertexShape();
-    const objs = d?.moved ? (d.custom ?? d.objs.map((o) => transformObj(o, d.m))) : this.objects();
     if (!objs.length) return;
     const bb = boundsOfAll(objs);
     if (!bb) return;
@@ -355,7 +480,7 @@ export class Selection extends Emitter<SelectionEvents> {
       this.roundRect(ctx, x, y, w, h, 4);
       ctx.fill();
       ctx.stroke();
-      if (!(d && d.moved) && this.canTransform()) {
+      if (handles && this.canTransform()) {
         const hs = this.handles({ x: bb.x, y: bb.y, w: bb.w, h: bb.h });
         const rot = hs.find((q) => q.id === 'rotate')!;
         ctx.beginPath();

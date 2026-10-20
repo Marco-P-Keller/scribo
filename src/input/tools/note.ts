@@ -40,6 +40,11 @@ export class NoteTool implements Tool {
     this.ed.editNote(s.page, null, { x: s.x - NOTE_SIZE / 2, y: s.y - NOTE_SIZE / 2 });
   }
 
+  /** a finger tap drops a note like a click */
+  tap(e: ToolEvent): void {
+    if (this.down(e)) this.up();
+  }
+
   cancel(): void {
     this.start = null;
   }

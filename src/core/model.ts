@@ -18,6 +18,8 @@ export interface HistoryEntry {
   patches: Patch[];
   /** optional structural change (page insert / delete / rotate …) that is undone with this entry */
   structure?: StructureChange;
+  /** later replaces with the same key are folded into this entry (see `replace`) */
+  merge?: string;
 }
 
 /** Swapping the whole page structure; the document layer knows how to apply it. */
@@ -135,7 +137,8 @@ export class AnnotationModel extends Emitter<ModelEvents> {
     if (patches.length) this.commit(label, patches);
   }
 
-  replace(label: string, page: number, updates: AnyObj[]): void {
+  /** `merge`: consecutive replaces with the same key (a slider being dragged) become one undo step. */
+  replace(label: string, page: number, updates: AnyObj[], merge?: string): void {
     const patches: Patch[] = [];
     const list = this.pages[page];
     if (!list) return;
@@ -143,7 +146,23 @@ export class AnnotationModel extends Emitter<ModelEvents> {
       const index = list.findIndex((o) => o.id === after.id);
       if (index >= 0 && list[index] !== after) patches.push({ page, id: after.id, before: list[index], after, index });
     }
-    if (patches.length) this.commit(label, patches);
+    if (!patches.length) return;
+    if (merge && this.mergeInto(merge, patches)) return;
+    this.commit(label, patches);
+    if (merge && !this.swapping) this.undoStack[this.undoStack.length - 1].merge = merge;
+  }
+
+  /** Fold replace-only patches into the newest history entry if it carries the same merge key. */
+  private mergeInto(key: string, patches: Patch[]): boolean {
+    const top = this.undoStack[this.undoStack.length - 1];
+    // a saved state must stay reachable by undo, so never merge across a save
+    if (!top || top.merge !== key || top.structure || this.swapping || this.redoStack.length || this.cleanId === top.id) return false;
+    const known = new Map(top.patches.map((p) => [`${p.page}/${p.id}`, p]));
+    if (patches.some((p) => !known.has(`${p.page}/${p.id}`))) return false;
+    this.applyPatches(patches, false);
+    for (const p of patches) known.get(`${p.page}/${p.id}`)!.after = p.after;
+    this.emit('history', undefined);
+    return true;
   }
 
   /** Apply patches immediately and record one history entry. */

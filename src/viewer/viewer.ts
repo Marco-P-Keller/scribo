@@ -417,6 +417,23 @@ export class Viewer extends Emitter<ViewerEvents> implements PageHost {
     return v;
   }
 
+  /** Page space of page `i` from layout alone, so it works while the page scrolls or is torn down. */
+  clientToPageAt(i: number, clientX: number, clientY: number): { x: number; y: number } {
+    const v = this.views.get(i);
+    if (v) return v.clientToPage(clientX, clientY);
+    const r = this.stage.getBoundingClientRect();
+    const s = this.scale;
+    const left = (this.contentW - this.session.metas[i].w * s) / 2;
+    return { x: (clientX - r.left + this.stage.scrollLeft - left) / s, y: (clientY - r.top + this.stage.scrollTop - this.tops[i]) / s };
+  }
+
+  /** What to add to a point in page `from`'s space to get the same spot in page `to`'s space. */
+  pageOffset(from: number, to: number): { x: number; y: number } {
+    const s = this.scale;
+    const left = (i: number) => (this.contentW - this.session.metas[i].w * s) / 2;
+    return { x: (left(from) - left(to)) / s, y: (this.tops[from] - this.tops[to]) / s };
+  }
+
   /** Nearest realized page to a client y (used when a stroke leaves the page). */
   scrollToPage(i: number, opts: { smooth?: boolean; offsetPt?: number } = {}): void {
     i = clamp(i, 0, this.pageCount - 1);

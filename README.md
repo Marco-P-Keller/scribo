@@ -34,9 +34,9 @@ Die Installation braucht keine Administratorrechte, Updates kommen automatisch v
 - **Stift & Textmarker** mit Farbe, Stärke und Deckkraft, als **Favoriten-Leiste** (Ziehen zum Umsortieren)
 - **Automatische Formerkennung**: Kreis, Ellipse, Rechteck, Dreieck, Linie – nach kurzem Ruhen des Stifts („Halten“) oder sofort beim Absetzen („Auto“)
 - **Stifttasten**: Taste 1 (Radiertaste, Code 32) radiert ganze Linien, Taste 2 (Seitentaste, Code 2) öffnet das Lasso; frei belegbar, mit Live-Test unter *Einstellungen*, in dem die gedrückte Taste aufleuchtet
-- **Lasso & Auswahl**: Handschrift auswählen, kopieren, ausschneiden, verschieben, skalieren, drehen, umfärben; eine per Stifttaste gezogene Auswahl lässt sich direkt mit der Stiftspitze verschieben und transformieren
-- **Radierer** (Linie oder Punkt), unbegrenzt **Rückgängig / Wiederholen**
-- **Formen** (Linie, Pfeil, Rechteck, Ellipse, Polygon, Linienzug) mit Füllung und Strichart, **Text** (4 Schriften), **Haftnotizen** (echte PDF-Kommentare), **Bilder**
+- **Lasso & Auswahl**: Handschrift auswählen, kopieren, ausschneiden, verschieben, skalieren, drehen, umfärben, per Ziehen auch auf eine andere Seite (am Fensterrand scrollt das Dokument mit); eine per Stifttaste gezogene Auswahl lässt sich direkt mit der Stiftspitze verschieben und transformieren. Ist *Mit dem Finger zeichnen* aus, wählt ein Fingertipp eine Anmerkung aus, und der Finger verschiebt die Auswahl
+- **Radierer** (Linie oder Punkt; Bilder radiert er nicht, die löschst du über Auswählen → Löschen), unbegrenzt **Rückgängig / Wiederholen**
+- **Formen** (Linie, Pfeil, Rechteck, Ellipse, Polygon, Linienzug) mit Füllfarbe, Deckkraft der Füllung und Strichart; einen Linienzug beendest du, indem du den letzten Punkt noch einmal antippst, **Text** (4 Schriften), **Haftnotizen** (echte PDF-Kommentare), **Bilder**
 - **Textmarker auf PDF-Text**: Text markieren → hervorheben, unterstreichen, durchstreichen
 - **Neues Notizbuch** auf leerem Papier, Notizpapier (liniert, 8 mm), Blockpapier (kariert, 5 mm) oder Punktraster, in A3, A4, A5, A6 oder Letter, hoch oder quer
 - **Seiten**: „Seite hinzufügen“ unter der letzten Seite oder Seite einfügen, jeweils mit Wahl von Papier, Grösse (auch „wie die Seite davor“) und Ausrichtung; drehen, sortieren, duplizieren, löschen

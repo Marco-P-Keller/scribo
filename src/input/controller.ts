@@ -17,6 +17,8 @@ export interface ControllerDeps {
   isSpaceHeld(): boolean;
   /** a tool that takes precedence at this point (e.g. moving the current selection with the pen tip) */
   overrideAt?(page: PageView, clientX: number, clientY: number, pointerType: ToolEvent['pointerType']): Tool | null;
+  /** a finger tap the tool doesn't handle itself: select the annotation under it */
+  tapSelect?(e: ToolEvent): void;
   /** live pen state for the settings panel (pressure meter, button tester) */
   onPenInfo?(info: { type: string; pressure: number; buttons: number; tiltX: number; tiltY: number } | null): void;
 }
@@ -392,8 +394,17 @@ export class InputController {
   private touchDown(e: PointerEvent): void {
     if (this.palmBlocked()) return;
     this.cancelInertia();
-    const tool = this.d.getTool();
-    const wantsDraw = settings.get('fingerDraws') && this.d.isDrawing(tool);
+    let tool = this.d.getTool();
+    let wantsDraw = settings.get('fingerDraws') && this.d.isDrawing(tool);
+    if (!this.active && this.touches.size === 0 && this.d.overrideAt) {
+      // a finger on the selection moves it, whether or not the finger draws
+      const page = this.d.viewer.pageAtClient(e.clientX, e.clientY, 18);
+      const grab = page ? this.d.overrideAt(page, e.clientX, e.clientY, 'touch') : null;
+      if (grab) {
+        tool = grab;
+        wantsDraw = true;
+      }
+    }
     if (wantsDraw && !this.active && this.touches.size === 0) {
       const page = this.d.viewer.pageAtClient(e.clientX, e.clientY, 18);
       const convert = page ? page.converter() : null;
@@ -490,7 +501,8 @@ export class InputController {
     const dbl = e.timeStamp - this.lastTapEv.t < 350 && Math.hypot(e.clientX - this.lastTapEv.x, e.clientY - this.lastTapEv.y) < 24;
     this.lastTapEv = { t: e.timeStamp, x: e.clientX, y: e.clientY };
     if (dbl && tool.dblclick) tool.dblclick(ev);
-    else tool.tap?.(ev);
+    else if (tool.tap) tool.tap(ev);
+    else this.d.tapSelect?.(ev);
   }
 
   private startInertia(vx: number, vy: number): void {

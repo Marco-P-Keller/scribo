@@ -105,7 +105,7 @@ export class SelectTool implements Tool {
 
   move(e: ToolEvent): void {
     if (this.mode === 'drag') {
-      this.ed.selection.update(e.x, e.y, { shift: e.shift, alt: e.alt });
+      this.ed.selection.update(e.x, e.y, { shift: e.shift, alt: e.alt }, { x: e.clientX, y: e.clientY });
     } else if (this.mode === 'marquee') {
       this.cur = { x: e.x, y: e.y };
       if (!this.raf) {

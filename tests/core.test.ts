@@ -48,6 +48,24 @@ describe('AnnotationModel history', () => {
     await m.undo();
     expect(m.dirty).toBe(true);
   });
+
+  it('folds replaces with the same merge key into one undo step, but not across a save', async () => {
+    const m = new AnnotationModel(1);
+    const box: ShapeObj = { id: 'r', t: 'shape', k: 'rect', p: [0, 0, 10, 0, 10, 10, 0, 10], c: '#000', w: 1, fill: '#f00', fo: 0.2 };
+    m.add('add', 0, box);
+    for (const fo of [0.3, 0.4, 0.5]) m.replace('fill', 0, [{ ...(m.pages[0][0] as ShapeObj), fo }], 'fo');
+    expect((m.pages[0][0] as ShapeObj).fo).toBe(0.5);
+    await m.undo();
+    expect((m.pages[0][0] as ShapeObj).fo).toBe(0.2);
+    await m.redo();
+    expect((m.pages[0][0] as ShapeObj).fo).toBe(0.5);
+    m.markClean();
+    m.replace('fill', 0, [{ ...(m.pages[0][0] as ShapeObj), fo: 0.9 }], 'fo');
+    expect(m.dirty).toBe(true);
+    await m.undo();
+    expect((m.pages[0][0] as ShapeObj).fo).toBe(0.5);
+    expect(m.dirty).toBe(false);
+  });
 });
 
 describe('serialization', () => {
